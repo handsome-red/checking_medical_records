@@ -1,0 +1,9 @@
+server:
+  port: 8080
+  read_timeout: 5s
+  write_timeout: 10s
+
+database:                          
+  driver: sqlite3
+  dsn: "./data/med_book.db?_journal_mode=WAL&_foreign_keys=1"
+  max_open_conns: 1
