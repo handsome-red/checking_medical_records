@@ -8,7 +8,9 @@ import (
     "med_book/internal/config"
 )
 
-var DB *sql.DB
+type Database struct {
+	DB *sql.DB
+}
 
 func InitDB(cfg *config.DatabaseConfig) error {
 	
@@ -23,20 +25,7 @@ func CloseDB() error {
 }
 
 func createTables() error {
-	createUserTable := `
-	CREATE TABLE IF NOT EXIST users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		firstName TEXT NOT NULL,
-		lastName TEXT NOT NULL,
-		patronymic TEXT NOT NULL,
-	);`
-
-	if _, err := DB.Exec(createUserTable); err != nil {
-		return err
-	}
-
-	slog.Info("Tables created successfully")
-	return nil
+	return createUserTable()
 }
 
 func createUsersTable() error {
@@ -53,5 +42,22 @@ func createUsersTable() error {
 	}
 
 	slog.Info("Tables created successfully")
+	return nil
+}
+
+func createBooksTable() error {
+	createBookTable := `
+	CREATE TABLE IF NOT EXIST books (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		data BLOB NOT NULL,
+		file_type TEXT DEFAULT 'application/pdf',
+	);`
+
+	if _, err := DB.Exec(createBookTable); err != nil {
+		return err
+	}
+
+	slog.Info("Table books created successfully")
 	return nil
 }

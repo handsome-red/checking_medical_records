@@ -7,6 +7,5 @@ import (
 
 func Init() {
     logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
     slog.SetDefault(logger)
 }

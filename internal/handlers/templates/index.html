@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Тест</title>
+</head>
+<body>
+    <h1>Тест: медицинская книжка</h1>
+    {{range .Questions}}
+        <h2>Вопрос {{.ID}}: {{.Text}}</h2>
+        <ul>
+        {{range .Options}}
+            <li>{{.Text}} {{if .Correct}}(верно){{end}}</li>
+        {{end}}
+        </ul>
+        <hr>
+    {{end}}
+    
+    <iframe src="/uploads/pdf.pdf" width="100%" height="600px">
+        Ваш браузер не поддерживает просмотр PDF. 
+        <a href="/uploads/pdf.pdf">Скачайте файл</a>
+    </iframe>
+</body>
+</html>

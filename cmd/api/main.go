@@ -1,29 +1,24 @@
 package main
 
 import (
-	"log/slog"
+	// "log/slog"
 	"net/http"
-	"med_book/pkg/logger"
-	"med_book/internal/config"
+
+	// "med_book/pkg/logger"
 	"med_book/internal/handlers"
+	"github.com/go-chi/chi/v5"
+    // "github.com/go-chi/chi/v5/middleware"
 )
 
+type Server struct {
+    mux *http.ServeMux
+}
+
 func main() {
-	
-	logger.Init()
+	r := chi.NewRouter()
 
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("Failed to load config", "error", err)
-		return
-	}
-	slog.Info("Config loaded successfully", "port", cfg.Server.Port)
+	r.Get("/", handlers.HelloWorldHandler)
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
-	http.HandleFunc("/", handlers.HelloWorldHandler)
-
-	slog.Info("Server starting", "port", cfg.Server.Port)
-	if err := http.ListenAndServe(cfg.Server.Port, nil); err != nil {
-		slog.Error("Server failed to start", "error", err)
-		return
-	}
+	http.ListenAndServe(":8080", r)
 }
