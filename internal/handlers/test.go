@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"net/http"
-	"med_book/internal/service"
 	"encoding/json"
 	"log"
+	"med_book/internal/service"
+	"net/http"
 
 	"html/template"
 	// "github.com/gin-gonic/gin"
@@ -21,20 +21,20 @@ func init() {
 	indexTemplate = tmpl
 }
 
-func HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
+func TestHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	
+
 	questions, err := service.NewTest("")
 	if err != nil {
-        log.Printf("Error loading test: %v", err)
-        
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]any{
-            "error": "failed to load questions",
-            "details": err.Error(),
-        })
-        return
-    }
+		log.Printf("Error loading test: %v", err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error":   "failed to load questions",
+			"details": err.Error(),
+		})
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err = indexTemplate.Execute(w, questions)

@@ -1,8 +1,8 @@
 package handlers
 
 import (
-    "embed"
-    "html/template"
+	"embed"
+	"html/template"
 )
 
 //go:embed templates/*.html
@@ -12,6 +12,6 @@ var templateFS embed.FS
 var Templates *template.Template
 
 func init() {
-    // Parse all templates at startup
-    Templates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
+	// Parse all templates at startup
+	Templates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
 }

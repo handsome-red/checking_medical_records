@@ -8,6 +8,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/spf13/viper v1.18.2
 	go.uber.org/fx v1.24.0
+	golang.org/x/crypto v0.16.0
 )
 
 require (

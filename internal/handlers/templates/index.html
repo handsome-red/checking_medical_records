@@ -7,10 +7,10 @@
 <body>
     <h1>Тест: медицинская книжка</h1>
     {{range .Questions}}
-        <h2>Вопрос {{.ID}}: {{.Text}}</h2>
+        <h2>{{.Text}}</h2>
         <ul>
         {{range .Options}}
-            <li>{{.Text}} {{if .Correct}}(верно){{end}}</li>
+            <li>{{.Text}}</li>
         {{end}}
         </ul>
         <hr>
