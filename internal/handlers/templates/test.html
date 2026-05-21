@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Медицинский тест</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/test-styles.css">
+</head>
+<body>
+    <body class="test-page">
+        <div class="test-layout">
+            <!-- ЛЕВАЯ КОЛОНКА: Вопросы -->
+            <div class="questions-panel">
+                <div class="container">
+                    <div class="test-header">
+                        <h1>Тестирование</h1>
+                        <div class="test-info">
+                            <span class="book-name">{{.CurrentBook.Name}}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="timer-container">
+                        <span class="timer-label">⏱ Осталось времени:</span>
+                        <span id="timer" class="timer-value">--:--</span>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{.progress}}%"></div>
+                        <div class="progress-text">{{.current}} / {{.total}}</div>
+                    </div>
+                    
+                    <form method="POST" action="/test/submit" id="test-form">
+                        <input type="hidden" name="question_id" value="{{.question.ID}}">
+                        
+                        <div class="question-container">
+                            <div class="question-number">Вопрос №{{.current}}</div>
+                            <p class="question-text">{{.question.Text}}</p>
+                            
+                            <div class="options-container">
+                                {{range $idx, $opt := .question.Options}}
+                                    <div class="option">
+                                        <label>
+                                            <input type="checkbox" name="answers" value="{{$idx}}">
+                                            <span class="option-text">{{$opt.Text}}</span>
+                                        </label>
+                                    </div>
+                                {{end}}
+                            </div>
+                        </div>
+                        
+                        <div class="button-group">
+                            <button type="submit" class="submit-btn">
+                                {{if eq .current .total}}✅ Завершить тест{{else}}➡ Следующий вопрос{{end}}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <!-- ПРАВАЯ КОЛОНКА: Документ -->
+            <div class="document-panel">
+                <div class="document-container">
+                    <div class="document-info">
+                        📄 {{.CurrentBook.Name}}
+                    </div>
+                    <div id="document-viewer" class="document-viewer">
+                        <div id="pages-container" class="pages-container">
+                            {{if .pages}}
+                                {{range .pages}}
+                                    <div class="page-item">
+                                        <img src="{{.Path}}" alt="Страница {{.Number}}" class="page-image">
+                                        <div class="page-number">Страница {{.Number}}</div>
+                                    </div>
+                                {{end}}
+                            {{else}}
+                                <div class="loading">Нет страниц для отображения</div>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ПРАВАЯ КОЛОНКА: Документ -->
+            
+        </div>     
+    </body>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Таймер
+            const expiresAt = new Date({{.expiresAt}} * 1000);
+            const timerElement = document.getElementById('timer');
+            
+            if (timerElement) {
+                function updateTimer() {
+                    const now = new Date();
+                    const distance = expiresAt - now;
+                    
+                    if (distance <= 0) {
+                        timerElement.innerHTML = "00:00";
+                        return;
+                    }
+                    
+                    const minutes = Math.floor(distance / 60000);
+                    const seconds = Math.floor((distance % 60000) / 1000);
+                    timerElement.innerHTML = minutes.toString().padStart(2, '0') + ":" + 
+                                            seconds.toString().padStart(2, '0');
+                }
+                
+                updateTimer();
+                setInterval(updateTimer, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

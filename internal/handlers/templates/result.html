@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Результаты теста</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+
+        <h1>Результаты теста</h1>
+        
+        <div>
+            <h2>Итог: {{.correct}} из {{.total}} правильных ответов</h2>
+            <p>Процент: {{printf "%.1f" .percentage}}%</p>
+        </div>
+        
+        <hr>
+        
+        <!-- <h2>Детальный разбор:</h2>
+        
+        {{range .results}}
+            <div class="question">
+                <h3>{{.QuestionText}}</h3>
+                
+                {{if .Image}}                
+                    <div class="image-container">
+                        <img src="{{.Image}}" alt="Иллюстрация">
+                    </div>
+                {{end}}
+
+                <div class="user-answer">
+                    <strong>Ваш ответ:</strong><br>
+                    {{if .UserAnswers}}
+                        <ul>
+                        {{range .UserAnswers}}
+                            <li>{{.}}</li>
+                        {{end}}
+                        </ul>
+                    {{else}}
+                        <span>Нет ответа</span>
+                    {{end}}
+                </div>
+                
+                <div class="correct-answer">
+                    <strong>Правильный ответ:</strong><br>
+                    <ul>
+                    {{range .CorrectAnswers}}
+                        <li>{{.}}</li>
+                    {{end}}
+                    </ul>
+                </div>
+                
+                <div>
+                    {{if .IsCorrect}}
+                        <span class="correct">Верно</span>
+                    {{else}}
+                        <span class="incorrect">Неверно</span>
+                    {{end}}
+                </div>
+            </div>
+            <hr>
+        {{end}} -->
+        
+        <br>
+        <a href="/">На главную</a>
+        <a href="/test/">Следующая медкнижка</a>
+    </div>
+</body>
+</html>

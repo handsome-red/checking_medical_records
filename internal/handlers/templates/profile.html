@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Мой профиль</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Шапка профиля -->
+        <div class="profile-header">
+            <h1>{{.User.FullName}}</h1>
+            <p>Всего пройдено тестов: {{.TotalSessions}}</p>
+        </div>
+
+        <!-- Статистика -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{.TotalSessions}}</div>
+                <div class="stat-label">Пройдено тестов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{.AvgScore}}%</div>
+                <div class="stat-label">Средний результат</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{.BestScore}}%</div>
+                <div class="stat-label">Лучший результат</div>
+            </div>
+        </div>
+
+        <!-- Таблица сессий -->
+        <h2 style="margin-bottom: 15px;">📋 История тестов</h2>
+        
+        {{if .Sessions}}
+        <div class="sessions-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>№</th>
+                        <th>Книга</th>
+                        <th>Результат</th>
+                        <th>Дата</th>
+                        <th>Время</th>
+                        <th>Статус</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range $index, $session := .Sessions}}
+                    <tr>
+                        <td>{{$index | add1}}</td>
+                        <td>{{$session.BookName}}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span>{{$session.Correct}}/{{$session.Total}}</span>
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill-mini" style="width: {{$session.Percentage}}%"></div>
+                                </div>
+                                <span>{{printf "%.0f" $session.Percentage}}%</span>
+                            </div>
+                        </td>
+                        <td>{{$session.Date}}</td>
+                        <td>{{$session.Duration}}</td>
+                        <td>
+                            {{if $session.Completed}}
+                                <span class="status-badge status-completed">✅ Завершён</span>
+                            {{else}}
+                                <span class="status-badge status-progress">🔄 В процессе</span>
+                            {{end}}
+                        </td>
+                        <td>
+                            <a href="/profile/session/{{$session.SessionID}}" class="btn-link">Подробнее</a>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <div class="empty-state">
+            <p>📭 У вас пока нет пройденных тестов</p>
+            <a href="/register" class="btn">Начать тест</a>
+        </div>
+        {{end}}
+        
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="/" class="btn">🏠 На главную</a>
+        </div>
+    </div>
+</body>
+</html>

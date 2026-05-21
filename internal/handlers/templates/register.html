@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Регистрация</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+
+        <h1>Регистрация пользователя</h1>
+        
+        {{if .Error}}
+            <p style="color: red;">{{.Error}}</p>
+        {{end}}
+        
+        <form method="POST" action="/api/registration">
+            <div class="rules">
+                    <div class="form-group">
+                        <label>Имя:</label>
+                        <input type="text" name="first_name" value="{{.FirstName}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Фамилия:</label>
+                        <input type="text" name="last_name" value="{{.LastName}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Отчество:</label>
+                        <input type="text" name="patronymic" value="{{.Patronymic}}">
+                    </div>
+                    <div class="form-group">
+                        <label>Пароль (мин. 6 символов):</label>
+                        <input type="password" name="password" required>
+                    </div>
+                <br>
+                <button type="submit">Зарегистрироваться</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
