@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему - МедКнига</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>Добро пожаловать</h1>
+            <p>Войдите в свой аккаунт</p>
+        </div>
+        <div class="login-form">
+            {{if .Error}}
+            <div class="error-message">{{.Error}}</div>
+            {{end}}
+            
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="your@email.com" required autofocus>
+                </div>
+                
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" name="password" placeholder="••••••••" required>
+                </div>
+                
+                <button type="submit">Войти</button>
+            </form>
+            
+            <div class="register-link">
+                <a href="/register">Нет аккаунта? Зарегистрироваться</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"med_book/internal/middleware"
 	"med_book/internal/model"
 	"med_book/internal/service"
 
@@ -193,7 +194,11 @@ func (h *TestHandler) ShowResult(w http.ResponseWriter, r *http.Request) {
 
 // POST /test/start - начать новый тест
 func (h *TestHandler) StartTest(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Ошибка получения userID", http.StatusInternalServerError)
+		return
+	}
 	fmt.Printf("StartTest для пользователя: %v\n", userID)
 
 	hasUnfinished, existingSession, err := h.sessionService.HasUnfinishedSession(userID)
@@ -427,13 +432,6 @@ func compareAnswers(user, correct []int) bool {
 	}
 
 	return true
-}
-
-// Вспомогательная функция для получения userID (нужно реализовать)
-func getUserIDFromContext(r *http.Request) uuid.UUID {
-	// Здесь должна быть логика получения userID из сессии/JWT токена
-	// Пока возвращаем тестовый ID
-	return uuid.MustParse("00000000-0000-0000-0000-000000000001")
 }
 
 // completeTest завершает тест (устанавливает CompletedAt)

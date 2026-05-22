@@ -3,26 +3,39 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"med_book/internal/config"
 	"med_book/internal/database"
 	"med_book/internal/handlers"
+	"med_book/internal/middleware"
 	"med_book/internal/repository"
 	"med_book/internal/service"
 
 	"github.com/go-chi/chi/v5"
 )
 
+const (
+	// defaultServerAddress - адрес сервера по умолчанию
+	defaultServerAddress = ":8080"
+
+	// shutdownTimeout - таймаут для graceful shutdown
+	shutdownTimeout = 30 * time.Second
+
+	// uploadsPath - путь к директории с загруженными файлами
+	uploadsPath = "/uploads/*"
+
+	// staticPath - путь к статическим файлам
+	staticPath = "/static/*"
+
+	// uploadsDir - директория для загрузок
+	uploadsDir = "uploads"
+
+	// staticDir - директория со статикой
+	staticDir = "./static"
+)
+
 func main() {
-
-	// dbConfig := database.Config{
-	// 	User:     "atlas", // ваш пользователь
-	// 	Password: "123",   // ваш пароль
-	// 	Host:     "localhost",
-	// 	Port:     "5432",
-	// 	DBName:   "med_book", // имя базы данных
-	// }
-
 	dbConfig, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal("Failed to get config:", err)
@@ -53,6 +66,9 @@ func main() {
 	testHandler := handlers.NewTestHandler(testService, sessionService)
 	profileService := service.NewProfileService(sessionRepo, sessionService)
 	profileHandler := handlers.NewProfileHandler(profileService, sessionService, userService, testService)
+	authService := service.NewAuthService("my-secret-key")
+	middleware := middleware.AuthMiddleware(authService)
+	authHandler := handlers.NewAuthHandler(authService, userService)
 
 	r := chi.NewRouter()
 
@@ -62,11 +78,16 @@ func main() {
 		http.FileServer(http.Dir("./static"))))
 
 	r.Get("/", testHandler.StartHandler)
+	r.Get("/login", authHandler.ShowLoginPage)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/registration", func(r chi.Router) {
 			r.Get("/", registrationHandler.ShowRegistrationForm)
 			r.Post("/", registrationHandler.Register)
 		})
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware)
 
 		r.Route("/profile", func(r chi.Router) {
 			r.Get("/", profileHandler.GetUserProfile)

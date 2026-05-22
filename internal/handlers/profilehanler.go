@@ -4,9 +4,11 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"time"
 
+	"med_book/internal/middleware"
 	"med_book/internal/model"
 	"med_book/internal/service"
 
@@ -359,4 +361,39 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dс", seconds)
 }
 
-func (h *ProfileHandler) GetUserProfile()
+type ProfileResponse struct {
+	ID         uuid.UUID
+	FirstName  string
+	LastName   string
+	Patronymic string
+	Books      []model.Book
+}
+
+func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	// Получучаем userID
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Получаем ФИО пользователя
+	user, err := h.userService.GetUser(userID)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	books := h.testService.GetBooks()
+
+	response := ProfileResponse{
+		ID:         user.ID,
+		FirstName:  user.FirstName,
+		LastName:   user.LastName,
+		Patronymic: user.Patronymic,
+		Books:      books,
+	}
+
+	tmpl, _ := template.ParseFiles("internal/handlers/templates/profile.html")
+	tmpl.Execute(w, response)
+}
