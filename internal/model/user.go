@@ -19,6 +19,10 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at,omitempty" db:"updated_at" gorm:"autoUpdateTime"`
 }
 
+func (User) TableName() string {
+	return "users"
+}
+
 func NewUser(firstName, lastName, patronymic, password string) (*User, error) {
 	if len(firstName) == 0 || len(lastName) == 0 || len(patronymic) == 0 {
 		return nil, errors.New("invalid name")

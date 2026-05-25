@@ -9,12 +9,17 @@ import (
 func Migrate(db *Database) error {
 	// Автомиграция
 	err := db.GetDB().AutoMigrate(
-		&model.Session{},
-		&model.SessionProgress{},
-		&model.SessionBook{},
-		&model.SessionQuestion{},
-		&model.SessionAnswer{},
 		&model.User{},
+		&model.Session{},
+		&model.Book{},
+		&model.BookPage{},
+		&model.Question{},
+		&model.UserAnswer{},
+		// &model.SessionProgress{},
+		// &model.SessionBook{},
+		// &model.SessionQuestion{},
+		// &model.SessionAnswer{},
+
 	)
 
 	if err != nil {
