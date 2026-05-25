@@ -10,6 +10,7 @@ import (
 	"med_book/internal/middleware"
 	"med_book/internal/model"
 	"med_book/internal/service"
+	"med_book/internal/templates"
 
 	"github.com/google/uuid"
 )
@@ -17,15 +18,18 @@ import (
 type TestHandler struct {
 	TestService    *service.TestService
 	sessionService *service.SessionService
+	template       *templates.TemplatesManager
 }
 
 func NewTestHandler(
 	TestService *service.TestService,
 	sessionService *service.SessionService,
+	template *templates.TemplatesManager,
 ) *TestHandler {
 	return &TestHandler{
 		TestService:    TestService,
 		sessionService: sessionService,
+		template:       template,
 	}
 }
 
@@ -111,7 +115,7 @@ func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 		"currentBook": currentQuestion.BookID,
 	}
 
-	Templates.ExecuteTemplate(w, "test.html", data)
+	h.template.ExecuteTemplate(w, "test.html", data)
 }
 
 // POST /test/submit - обработать ответ
@@ -189,7 +193,7 @@ func (h *TestHandler) ShowResult(w http.ResponseWriter, r *http.Request) {
 		"percentage": results["percentage"],
 	}
 
-	Templates.ExecuteTemplate(w, "result.html", data)
+	h.template.ExecuteTemplate(w, "result.html", data)
 }
 
 // POST /test/start - начать новый тест
@@ -232,7 +236,7 @@ func (h *TestHandler) StartTest(w http.ResponseWriter, r *http.Request) {
 			"Message":  "Вы уже проходили тест сегодня",
 			"NextTime": nextTime.Format("02.01.2006 15:04"),
 		}
-		Templates.ExecuteTemplate(w, "cooldown.html", data)
+		h.template.ExecuteTemplate(w, "cooldown.html", data)
 		return
 	}
 

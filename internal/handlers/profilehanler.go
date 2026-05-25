@@ -4,13 +4,14 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
+	"log"
 	"net/http"
 	"time"
 
 	"med_book/internal/middleware"
 	"med_book/internal/model"
 	"med_book/internal/service"
+	"med_book/internal/templates"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type ProfileHandler struct {
 	sessionService *service.SessionService
 	userService    *service.UserService
 	testService    *service.TestService
+	templates      *templates.TemplatesManager
 }
 
 func NewProfileHandler(
@@ -28,12 +30,14 @@ func NewProfileHandler(
 	sessionService *service.SessionService,
 	userService *service.UserService,
 	testService *service.TestService,
+	templates *templates.TemplatesManager,
 ) *ProfileHandler {
 	return &ProfileHandler{
 		profileService: profileService,
 		sessionService: sessionService,
 		userService:    userService,
 		testService:    testService,
+		templates:      templates,
 	}
 }
 
@@ -153,7 +157,7 @@ func (h *ProfileHandler) GetUserSessions(w http.ResponseWriter, r *http.Request)
 		"BestScore":     int(bestPercentage),
 	}
 
-	Templates.ExecuteTemplate(w, "profile.html", data)
+	h.templates.ExecuteTemplate(w, "profile.html", data)
 }
 
 func formatDurationShort(d time.Duration) string {
@@ -366,11 +370,21 @@ type ProfileResponse struct {
 	FirstName  string
 	LastName   string
 	Patronymic string
-	Books      []model.Book
+	Books      []UserBookStat
+}
+
+type UserBookStat struct {
+	BookID          int
+	BookName        string
+	AttemptsCount   int      // Количество попыток
+	BestScore       int      // Лучшее количество правильных ответов
+	TotalQuestions  int      // Всего вопросов в книге
+	BestPercentage  float64  // Лучший процент (для отображения)
 }
 
 func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	// Получучаем userID
+	log.Println("🚀 GetUserProfile START")
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -385,15 +399,30 @@ func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) 
 	}
 
 	books := h.testService.GetBooks()
+	booksStats := make([]UserBookStat, 0, len(books))
+
+	for _, book := range books {
+		booksStats = append(booksStats, UserBookStat{
+			BookID: book.ID,
+			BookName: book.Name,
+			AttemptsCount: h.sessionService.CompleteSession()
+			BestScore      int     // Лучшее количество правильных ответов
+			TotalQuestions int     // Всего вопросов в книге
+			BestPercentage
+		})
+	}
 
 	response := ProfileResponse{
 		ID:         user.ID,
 		FirstName:  user.FirstName,
 		LastName:   user.LastName,
 		Patronymic: user.Patronymic,
-		Books:      books,
+		Books:     	
 	}
 
-	tmpl, _ := template.ParseFiles("internal/handlers/templates/profile.html")
-	tmpl.Execute(w, response)
+	if err := h.templates.ExecuteTemplate(w, "profile.html", response); err != nil {
+		log.Printf("❌ ExecuteTemplate error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }

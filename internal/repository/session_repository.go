@@ -208,3 +208,12 @@ func (r *SessionRepository) GetAllSessions() ([]*model.Session, error) {
 
 	return sessions, nil
 }
+
+// GetUserAttempts возвращает количество попыток прохождения книги пользователем
+func (r *SessionRepository) GetUserAttempts(userID uuid.UUID, bookID int) (int, error) {
+	var attempts int
+
+	result := r.db.GetDB().Where("")
+
+	return s.testService.GetUserAttempts(userID, bookID)
+}

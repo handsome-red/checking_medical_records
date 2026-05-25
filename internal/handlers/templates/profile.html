@@ -9,22 +9,24 @@
     <div class="container">
         <!-- Шапка профиля -->
         <div class="profile-header">
-            <h1>{{.User.FullName}}</h1>
+            <h1>{{.FirstName}}</h1>
+            <h1>{{.LastName}}</h1>
+            <h1>{{.Patronymic}}</h1>
             <p>Всего пройдено тестов: {{.TotalSessions}}</p>
         </div>
 
         <!-- Статистика -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-number">{{.TotalSessions}}</div>
+                <!-- <div class="stat-number">{{.TotalSessions}}</div> -->
                 <div class="stat-label">Пройдено тестов</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{.AvgScore}}%</div>
+                <!-- <div class="stat-number">{{.AvgScore}}%</div> -->
                 <div class="stat-label">Средний результат</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{.BestScore}}%</div>
+                <!-- <div class="stat-number">{{.BestScore}}%</div> -->
                 <div class="stat-label">Лучший результат</div>
             </div>
         </div>
@@ -32,7 +34,7 @@
         <!-- Таблица сессий -->
         <h2 style="margin-bottom: 15px;">📋 История тестов</h2>
         
-        {{if .Sessions}}
+        <!-- {{if .Sessions}}
         <div class="sessions-table">
             <table>
                 <thead>
@@ -49,7 +51,7 @@
                 <tbody>
                     {{range $index, $session := .Sessions}}
                     <tr>
-                        <td>{{$index | add1}}</td>
+                        <td>{{$index}}</td>
                         <td>{{$session.BookName}}</td>
                         <td>
                             <div style="display: flex; align-items: center; gap: 10px;">
@@ -82,7 +84,7 @@
             <p>📭 У вас пока нет пройденных тестов</p>
             <a href="/register" class="btn">Начать тест</a>
         </div>
-        {{end}}
+        {{end}} -->
         
         <div style="margin-top: 30px; text-align: center;">
             <a href="/" class="btn">🏠 На главную</a>

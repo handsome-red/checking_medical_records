@@ -11,6 +11,7 @@ import (
 	"med_book/internal/middleware"
 	"med_book/internal/repository"
 	"med_book/internal/service"
+	"med_book/internal/templates"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -59,16 +60,20 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create testService:", err)
 	}
-	questionService := service.NewQuestionService(db)
 	sessionService := service.NewSessionService(sessionRepo, testService)
-
-	registrationHandler := handlers.NewRegistrationHandler(userService, sessionService, questionService, testService)
-	testHandler := handlers.NewTestHandler(testService, sessionService)
 	profileService := service.NewProfileService(sessionRepo, sessionService)
-	profileHandler := handlers.NewProfileHandler(profileService, sessionService, userService, testService)
 	authService := service.NewAuthService("my-secret-key")
+
 	middleware := middleware.AuthMiddleware(authService)
-	authHandler := handlers.NewAuthHandler(authService, userService)
+
+	templateManager, err := templates.NewTemplatesManager("internal/handlers/templates/*.html")
+	if err != nil {
+		log.Fatal("Failed to create TemplateMAnager:", err)
+	}
+
+	testHandler := handlers.NewTestHandler(testService, sessionService, templateManager)
+	profileHandler := handlers.NewProfileHandler(profileService, sessionService, userService, testService, templateManager)
+	authHandler := handlers.NewAuthHandler(authService, userService, templateManager)
 
 	r := chi.NewRouter()
 
@@ -81,8 +86,10 @@ func main() {
 	r.Get("/login", authHandler.ShowLoginPage)
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/registration", func(r chi.Router) {
-			r.Get("/", registrationHandler.ShowRegistrationForm)
-			r.Post("/", registrationHandler.Register)
+			// r.Get("/", registrationHandler.ShowRegistrationForm)
+			// r.Post("/", registrationHandler.Register)
+			r.Get("/", authHandler.ShowRegisterPage)
+			r.Post("/", authHandler.Register)
 		})
 	})
 

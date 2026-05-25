@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"med_book/internal/model"
 	"med_book/internal/service"
 	"net/http"
@@ -14,6 +15,7 @@ type RegistrationHandler struct {
 	sessionService  *service.SessionService
 	questionService *service.QuestionService
 	testService     *service.TestService
+	template        *template.Template
 }
 
 func NewRegistrationHandler(
@@ -21,18 +23,20 @@ func NewRegistrationHandler(
 	sessionService *service.SessionService,
 	questionService *service.QuestionService,
 	testService *service.TestService,
+	template *template.Template,
 ) *RegistrationHandler {
 	return &RegistrationHandler{
 		userService:     userService,
 		sessionService:  sessionService,
 		questionService: questionService,
 		testService:     testService,
+		template:        template,
 	}
 }
 
 func (h *RegistrationHandler) ShowRegistrationForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err := Templates.ExecuteTemplate(w, "register.html", nil)
+	err := h.template.ExecuteTemplate(w, "register.html", nil)
 	if err != nil {
 		http.Error(w, "Ошибка загрузки формы регистрации", http.StatusInternalServerError)
 	}
@@ -68,7 +72,7 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 				"LastName":   lastName,
 				"Patronymic": patronymic,
 			}
-			Templates.ExecuteTemplate(w, "register.html", data)
+			h.template.ExecuteTemplate(w, "register.html", data)
 			return
 		}
 	}
@@ -84,7 +88,7 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 				"LastName":   lastName,
 				"Patronymic": patronymic,
 			}
-			Templates.ExecuteTemplate(w, "register.html", data)
+			h.template.ExecuteTemplate(w, "register.html", data)
 			return
 		}
 
@@ -96,21 +100,23 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 				"LastName":   lastName,
 				"Patronymic": patronymic,
 			}
-			Templates.ExecuteTemplate(w, "register.html", data)
+			h.template.ExecuteTemplate(w, "register.html", data)
 			return
 		}
 
 		user = person // 👈 ВАЖНО: присваиваем существующего пользователя
 	} else {
-		user, err = h.userService.RegisterUser(firstName, lastName, patronymic, password)
+		email := "asdasdasdasd"
+		user, err = h.userService.RegisterUser(email, firstName, lastName, patronymic, password)
 		if err != nil {
 			data := map[string]any{
 				"Error":      err.Error(),
+				"Email":      email,
 				"FirstName":  firstName,
 				"LastName":   lastName,
 				"Patronymic": patronymic,
 			}
-			Templates.ExecuteTemplate(w, "register.html", data)
+			h.template.ExecuteTemplate(w, "register.html", data)
 			return
 		}
 		fmt.Printf("User %v: %s %s %s зарегистрирован\n", user.ID, user.LastName, user.FirstName, user.Patronymic)
@@ -132,7 +138,7 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 			"LastName":   lastName,
 			"Patronymic": patronymic,
 		}
-		Templates.ExecuteTemplate(w, "register.html", data)
+		h.template.ExecuteTemplate(w, "register.html", data)
 		return
 	}
 	fmt.Printf("Создана новая сессия id: %v\n", session.ID)

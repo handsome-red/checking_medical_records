@@ -4,19 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход в систему - МедКнига</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-header">
-            <h1>Добро пожаловать</h1>
-            <p>Войдите в свой аккаунт</p>
+    <div class="container">
+            <h1>Войдите в свой аккаунт</h1>
         </div>
-        <div class="login-form">
-            {{if .Error}}
-            <div class="error-message">{{.Error}}</div>
-            {{end}}
-            
+        {{if .Error}}
+        <!-- <div class="error-message">{{.Error}}</div> -->
+        <p style="color: red;">{{.Error}}</p>
+        {{end}}
+        
+        <div class="rules">
             <form method="POST" action="/login">
                 <div class="form-group">
                     <label>Email</label>

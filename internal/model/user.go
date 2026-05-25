@@ -10,6 +10,7 @@ import (
 
 type User struct {
 	ID           uuid.UUID `json:"id" db:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	Email        string    `json:"email" db:"email" gorm:"not null;size:50"`
 	FirstName    string    `json:"first_name" db:"first_name" gorm:"not null;size:50"`
 	LastName     string    `json:"last_name" db:"last_name" gorm:"not null;size:50"`
 	Patronymic   string    `json:"patronymic" db:"patronymic" gorm:"not null;size:50"`

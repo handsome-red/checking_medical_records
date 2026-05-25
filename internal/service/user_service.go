@@ -17,11 +17,12 @@ func NewUserService(userRepo repository.UserRepositoryInterface) *UserService {
 	return &UserService{userRepo: userRepo}
 }
 
-func (s *UserService) RegisterUser(firstName, lastName, patronymic, password string) (*model.User, error) {
+func (s *UserService) RegisterUser(email, firstName, lastName, patronymic, password string) (*model.User, error) {
+	email = strings.TrimSpace(email)
 	firstName = strings.TrimSpace(firstName)
 	lastName = strings.TrimSpace(lastName)
 
-	if firstName == "" || lastName == "" {
+	if firstName == "" || lastName == "" || email == "" {
 		return nil, errors.New("invalid name")
 	}
 
@@ -31,6 +32,7 @@ func (s *UserService) RegisterUser(firstName, lastName, patronymic, password str
 
 	user := &model.User{
 		ID:           uuid.New(),
+		Email:        email,
 		FirstName:    firstName,
 		LastName:     lastName,
 		Patronymic:   patronymic,
@@ -50,4 +52,21 @@ func (s *UserService) GetUser(id uuid.UUID) (*model.User, error) {
 
 func (s *UserService) FindByFIO(fisrtName, lastName, patronymic string) (*model.User, error) {
 	return s.userRepo.FindByFIO(fisrtName, lastName, patronymic)
+}
+
+func (s *UserService) FindByEmail(email string) (*model.User, error) {
+	return s.userRepo.FindByEmail(email)
+}
+
+func (s *UserService) Authenticate(email, password string) (*model.User, error) {
+	user, err := s.FindByEmail(email)
+	if err != nil {
+		return nil, errors.New("invalid email or password")
+	}
+
+	if ok := user.CheckPassword(password); !ok {
+		return nil, errors.New("invalid email or password")
+	}
+
+	return user, nil
 }
