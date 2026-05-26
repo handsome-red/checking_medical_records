@@ -2,10 +2,17 @@ package model
 
 import "github.com/google/uuid"
 
+// model/book.go
 type Book struct {
-	ID    uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Title string    `gorm:"not null;index"`
-	Pages []BookPage
+	ID       uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Title    string    `gorm:"not null;size:200;index"`
+	BookPath string    `gorm:"size:500"`
+
+	// Связи
+	Pages     []BookPage `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
+	Images    []Image    `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
+	Questions []Question `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
+	Sessions  []Session  `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
 }
 
 type BookPage struct {

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"med_book/internal/database"
 	"med_book/internal/model"
@@ -11,7 +12,7 @@ import (
 
 type UserRepositoryInterface interface {
 	Create(user *model.User) error
-	FindByID(id uuid.UUID) (*model.User, error)
+	FindByID(ctx context.Context, userID uuid.UUID) (*model.User, error)
 	FindByEmail(email string) (*model.User, error)
 	FindByFIO(fisrtName, lastName, patronymic string) (*model.User, error)
 }

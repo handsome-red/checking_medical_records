@@ -20,7 +20,7 @@ package model
 // }
 
 // // session_progress - текущее состояние (1:1 с session)
-// type SessionProgress struct {
+// type Session struct {
 // 	SessionID         uuid.UUID `gorm:"primary_key"`
 // 	CurrentBookIndex  int       `gorm:"default:0"`
 // 	CurrentQIndex     int       `gorm:"default:0"`
@@ -29,24 +29,24 @@ package model
 // 	CompletedAt       *time.Time
 // }
 
-// func (SessionProgress) TableName() string {
+// func (Session) TableName() string {
 // 	return "session_progresses"
 // }
 
-// // SessionBook - книги, которые пользователь проходит в этой сессии
-// type SessionBook struct {
+// // Book - книги, которые пользователь проходит в этой сессии
+// type Book struct {
 // 	ID         uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 // 	SessionID  uuid.UUID `gorm:"type:uuid;index;not null"`
 // 	BookID     int       `gorm:"not null"`
 // 	OrderIndex int       `gorm:"not null"`
 // }
 
-// func (SessionBook) TableName() string {
+// func (Book) TableName() string {
 // 	return "session_books"
 // }
 
-// // SessionQuestion - вопросы в рамках сессии и книги
-// type SessionQuestion struct {
+// // Question - вопросы в рамках сессии и книги
+// type Question struct {
 // 	ID         uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 // 	SessionID  uuid.UUID `gorm:"type:uuid;index;not null"`
 // 	BookID     int       `gorm:"not null"`
@@ -54,18 +54,18 @@ package model
 // 	OrderIndex int       `gorm:"not null"`
 // }
 
-// func (SessionQuestion) TableName() string {
+// func (Question) TableName() string {
 // 	return "session_questions"
 // }
 
-// // SessionAnswer - ответы пользователя на вопросы
-// type SessionAnswer struct {
+// // UserAnswer - ответы пользователя на вопросы
+// type UserAnswer struct {
 // 	ID         uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 // 	SessionID  uuid.UUID `gorm:"type:uuid;index;not null"`
 // 	QuestionID int       `gorm:"not null"`
 // 	AnswerID   int       `gorm:"not null"`
 // }
 
-// func (SessionAnswer) TableName() string {
+// func (UserAnswer) TableName() string {
 // 	return "session_answers"
 // }

@@ -1,4 +1,3 @@
-// internal/handler/test_handler.go
 package handlers
 
 import (
@@ -16,19 +15,20 @@ import (
 )
 
 type TestHandler struct {
-	TestService    *service.TestService
 	sessionService *service.SessionService
+	bookService    *service.BookService   // ← добавляем BookService
+	answerService  *service.AnswerService // ← опционально
 	template       *templates.TemplatesManager
 }
 
 func NewTestHandler(
-	TestService *service.TestService,
 	sessionService *service.SessionService,
+	bookService *service.BookService,
 	template *templates.TemplatesManager,
 ) *TestHandler {
 	return &TestHandler{
-		TestService:    TestService,
 		sessionService: sessionService,
+		bookService:    bookService,
 		template:       template,
 	}
 }
@@ -72,9 +72,9 @@ func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("До конца сессии id: %d осталось %v\n", session.ID, session.ExpiresAt)
 
 	// Получаем вопросы сессии
-	questionsID, err := h.sessionService.GetSessionQuestions(session.ID)
+	questionsID, err := h.sessionService.GetQuestions(session.ID)
 	if err != nil {
-		fmt.Printf("GetSessionQuestions ошибка: %v\n", err)
+		fmt.Printf("GetQuestions ошибка: %v\n", err)
 		http.Error(w, "Ошибка получения вопросов", http.StatusInternalServerError)
 		return
 	}
@@ -127,7 +127,7 @@ func (h *TestHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Получаем вопросы сессии
-	questionsID, err := h.sessionService.GetSessionQuestions(session.ID)
+	questionsID, err := h.sessionService.GetQuestions(session.ID)
 	if err != nil {
 		http.Error(w, "Ошибка получения вопросов", http.StatusInternalServerError)
 		return
@@ -287,7 +287,7 @@ func (h *TestHandler) calculateResults(sessionID uuid.UUID) map[string]any {
 	}
 
 	// Получаем все вопросы сессии
-	sessionQuestions, err := h.sessionService.GetSessionQuestions(sessionID)
+	sessionQuestions, err := h.sessionService.GetQuestions(sessionID)
 	if err != nil {
 		fmt.Printf("Ошибка получения вопросов сессии: %v\n", err)
 		return map[string]any{"error": "Failed to get session questions"}
@@ -310,7 +310,7 @@ func (h *TestHandler) calculateResults(sessionID uuid.UUID) map[string]any {
 
 	for _, sq := range sessionQuestions {
 		// Получаем вопрос
-		question, err := h.TestService.GetQuestion(sq.QuestionID)
+		question, err := h.sessionService.GetQuestion(sq.QuestionID)
 		if err != nil {
 			fmt.Printf("Ошибка получения вопроса %d: %v\n", question.ID, err)
 			continue
@@ -411,7 +411,7 @@ func parseAnswers(answers []string) []int {
 func getCorrectIndexes(options []model.Option) []int {
 	correct := make([]int, 0)
 	for i, opt := range options {
-		if opt.Correct {
+		if opt.IsCorrect {
 			correct = append(correct, i)
 		}
 	}

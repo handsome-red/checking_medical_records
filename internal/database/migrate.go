@@ -15,10 +15,10 @@ func Migrate(db *Database) error {
 		&model.BookPage{},
 		&model.Question{},
 		&model.UserAnswer{},
-		// &model.SessionProgress{},
-		// &model.SessionBook{},
-		// &model.SessionQuestion{},
-		// &model.SessionAnswer{},
+		// &model.Session{},
+		// &model.Book{},
+		// &model.Question{},
+		// &model.UserAnswer{},
 
 	)
 

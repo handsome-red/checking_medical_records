@@ -1,89 +1,97 @@
+// internal/repository/transaction.go
 package repository
 
-import (
-	"errors"
-	"med_book/internal/model"
+import "gorm.io/gorm"
 
-	"github.com/google/uuid"
-	"gorm.io/gorm"
-)
-
-type TransactionInterface interface {
-	// Основные операции с сессией
-	CreateSession(session *model.Session) error
-	FindSessionByID(id uuid.UUID) (*model.Session, error)
-	UpdateSession(session *model.Session) error
-
-	// Операции с вопросами
-	CreateSessionQuestion(question *model.SessionQuestion) error
-
-	// Операции с ответами
-	CreateAnswer(answer *model.SessionAnswer) error
-
-	// Операции с прогрессом
-	GetProgress(sessionID uuid.UUID) (*model.SessionProgress, error)
-	CreateProgress(progress *model.SessionProgress) error
-	UpdateProgress(progress *model.SessionProgress) error
-
-	// Управление транзакцией
-	Commit() error
-	Rollback() error
+// DBInterface - интерфейс для операций с БД
+type DBInterface interface {
+	First(dest interface{}, conds ...interface{}) *gorm.DB
+	Find(dest interface{}, conds ...interface{}) *gorm.DB
+	Create(value interface{}) *gorm.DB
+	Save(value interface{}) *gorm.DB
+	Delete(value interface{}, conds ...interface{}) *gorm.DB
+	Where(query interface{}, args ...interface{}) *gorm.DB
+	Preload(query string, args ...interface{}) *gorm.DB
+	Model(value interface{}) *gorm.DB
+	Exec(sql string, values ...interface{}) *gorm.DB
+	Raw(sql string, values ...interface{}) *gorm.DB
+	Scan(dest interface{}) *gorm.DB
+	Count(count *int64) *gorm.DB
+	Begin() *gorm.DB
+	Commit() *gorm.DB
+	Rollback() *gorm.DB
+	Error() error
 }
 
-type SessionTxRepository struct {
-	tx *gorm.DB
+// GormDB адаптер для gorm.DB
+type GormDB struct {
+	db *gorm.DB
 }
 
-func NewSessionTxRepository(tx *gorm.DB) *SessionTxRepository {
-	return &SessionTxRepository{tx: tx}
+func NewGormDB(db *gorm.DB) *GormDB {
+	return &GormDB{db: db}
 }
 
-func (r *SessionTxRepository) CreateSession(session *model.Session) error {
-	return r.tx.Create(session).Error
+func (g *GormDB) First(dest interface{}, conds ...interface{}) *gorm.DB {
+	return g.db.First(dest, conds...)
 }
 
-func (r *SessionTxRepository) FindSessionByID(id uuid.UUID) (*model.Session, error) {
-	var session model.Session
-	err := r.tx.First(&session, "id = ?", id).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("session not found")
-	}
-	return &session, err
+func (g *GormDB) Find(dest interface{}, conds ...interface{}) *gorm.DB {
+	return g.db.Find(dest, conds...)
 }
 
-func (r *SessionTxRepository) UpdateSession(session *model.Session) error {
-	return r.tx.Save(session).Error
+func (g *GormDB) Create(value interface{}) *gorm.DB {
+	return g.db.Create(value)
 }
 
-func (r *SessionTxRepository) CreateSessionQuestion(question *model.SessionQuestion) error {
-	return r.tx.Create(question).Error
+func (g *GormDB) Save(value interface{}) *gorm.DB {
+	return g.db.Save(value)
 }
 
-func (r *SessionTxRepository) CreateAnswer(answer *model.SessionAnswer) error {
-	return r.tx.Create(answer).Error
+func (g *GormDB) Delete(value interface{}, conds ...interface{}) *gorm.DB {
+	return g.db.Delete(value, conds...)
 }
 
-func (r *SessionTxRepository) GetProgress(sessionID uuid.UUID) (*model.SessionProgress, error) {
-	var progress model.SessionProgress
-	err := r.tx.First(&progress, "session_id = ?", sessionID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("progress not found")
-	}
-	return &progress, err
+func (g *GormDB) Where(query interface{}, args ...interface{}) *gorm.DB {
+	return g.db.Where(query, args...)
 }
 
-func (r *SessionTxRepository) CreateProgress(progress *model.SessionProgress) error {
-	return r.tx.Create(progress).Error
+func (g *GormDB) Preload(query string, args ...interface{}) *gorm.DB {
+	return g.db.Preload(query, args...)
 }
 
-func (r *SessionTxRepository) UpdateProgress(progress *model.SessionProgress) error {
-	return r.tx.Save(progress).Error
+func (g *GormDB) Model(value interface{}) *gorm.DB {
+	return g.db.Model(value)
 }
 
-func (r *SessionTxRepository) Commit() error {
-	return r.tx.Commit().Error
+func (g *GormDB) Exec(sql string, values ...interface{}) *gorm.DB {
+	return g.db.Exec(sql, values...)
 }
 
-func (r *SessionTxRepository) Rollback() error {
-	return r.tx.Rollback().Error
+func (g *GormDB) Raw(sql string, values ...interface{}) *gorm.DB {
+	return g.db.Raw(sql, values...)
+}
+
+func (g *GormDB) Scan(dest interface{}) *gorm.DB {
+	return g.db.Scan(dest)
+}
+
+func (g *GormDB) Count(count *int64) *gorm.DB {
+	return g.db.Count(count)
+}
+
+func (g *GormDB) Begin() *gorm.DB {
+	return g.db.Begin()
+}
+
+func (g *GormDB) Commit() *gorm.DB {
+	return g.db.Commit()
+}
+
+func (g *GormDB) Rollback() *gorm.DB {
+	return g.db.Rollback()
+}
+
+func (g *GormDB) Error() error {
+	return g.db.Error
 }

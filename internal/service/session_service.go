@@ -19,32 +19,36 @@ const (
 	numberOfQuestion = 5
 )
 
+type SessionServiceInterface struct {
+	sessionRepo *repository.SessionRepository
+	bookRepo    *repository.BookRepository
+	answerRepo  *repository.AnswerRepository
+}
+
 type SessionService struct {
-	repo        repository.SessionRepositoryInterface
-	testService *TestService
+	sessionRepo *repository.SessionRepository
+	bookRepo    *repository.BookRepository
+	answerRepo  *repository.AnswerRepository
 }
 
 func NewSessionService(
-	repo repository.SessionRepositoryInterface,
-	testService *TestService,
+	sessionRepo *repository.SessionRepository,
+	bookRepo *repository.BookRepository,
+	answerRepo *repository.AnswerRepository,
 ) *SessionService {
 	return &SessionService{
-		repo:        repo,
-		testService: testService,
+		sessionRepo: sessionRepo,
+		bookRepo:    bookRepo,
+		answerRepo:  answerRepo,
 	}
 }
 
 // ========== СОЗДАНИЕ СЕССИИ ==========
 
 // CreateSession создаёт новую сессию с книгами и вопросами
-func (s *SessionService) CreateSession(userID uuid.UUID, bookIDs []int) (*model.Session, error) {
+func (s *SessionService) CreateSession(userID, bookID uuid.UUID) (*model.Session, error) {
 	// 1. Создаём сессию
-	session := &model.Session{
-		ID:        uuid.New(),
-		UserID:    userID,
-		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(sessionDuration),
-	}
+	session := s
 
 	if err := s.repo.CreateSession(session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -164,6 +168,16 @@ func (s *SessionService) GetCurrentQuestion(sessionID uuid.UUID) (*model.Questio
 	}
 
 	return s.testService.GetQuestion(questionID)
+}
+
+// GetUserAttempts возвращает количество попыток прохождения книги пользователем
+func (s *SessionService) GetUserAttempts(userID uuid.UUID, bookID int) (int, error) {
+	book, err := s.testService.GetBook(bookID)
+	if err != nil {
+		return 0, fmt.Errorf("book")
+	}
+
+	return s.testService.GetUserAttempts(userID, bookID)
 }
 
 // GetCurrentProgress возвращает текущий прогресс

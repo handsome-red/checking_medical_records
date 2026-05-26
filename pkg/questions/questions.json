@@ -2,6 +2,7 @@
     "books": [
         {
         "id": 1,
+        "name": "Медицинская книжка - Образец 1 (правильная)",
         "book_path": "/uploads/sample_1",
         "questions": [
                 {
@@ -178,6 +179,7 @@
         },
         {
         "id": 2,
+        "name": "Медицинская книжка - Образец 2 (подделка)",
         "book_path": "/uploads/sample_2",
         "questions": [
                 {
