@@ -17,7 +17,7 @@ type UserRepositoryInterface interface {
 	FindByFIO(fisrtName, lastName, patronymic string) (*model.User, error)
 }
 
-func (ur *UserRepository) FindByEmail(email string) (*model.User, error) {
+func (ur *UserRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	result := ur.db.GetDB().Where("email = ?", email).First(&user)
 	if result.Error != nil {

@@ -5,12 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"time"
 
 	"med_book/internal/model"
 	"med_book/internal/service"
+	"med_book/internal/templates"
 
 	"github.com/google/uuid"
 )
@@ -19,14 +19,14 @@ type RegistrationHandler struct {
 	userService    *service.UserService
 	sessionService *service.SessionService
 	bookService    *service.BookService
-	template       *template.Template
+	template       *templates.TemplatesManager
 }
 
 func NewRegistrationHandler(
 	userService *service.UserService,
 	sessionService *service.SessionService,
 	bookService *service.BookService,
-	template *template.Template,
+	template *templates.TemplatesManager,
 ) *RegistrationHandler {
 	return &RegistrationHandler{
 		userService:    userService,

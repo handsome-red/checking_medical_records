@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"med_book/internal/config"
 	"med_book/internal/database"
 	"med_book/internal/handlers"
 	"med_book/internal/middleware"
@@ -21,25 +22,31 @@ const (
 )
 
 func main() {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatal("Failed to load congig:", err)
+		return
+	}
 	// Подключение к БД
-	db, err := database.NewDatabaseFromEnv()
+	db, err := database.NewDatabase(cfg)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
 
 	// Миграция
-	if err := database.Migrate(db.GetDB()); err != nil {
+	if err := database.Migrate(db); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
 
 	// Инициализация репозиториев
-	userRepo := repository.NewUserRepository(db.GetDB())
+	userRepo := repository.NewUserRepository(db)
 	sessionRepo := repository.NewSessionRepository(db.GetDB())
 	bookRepo := repository.NewBookRepository(db.GetDB())
 	answerRepo := repository.NewAnswerRepository(db.GetDB())
 
 	// Инициализация сервисов
+	authService := service.NewAuthService("my-secret-key")
 	userService := service.NewUserService(userRepo)
 	sessionService := service.NewSessionService(sessionRepo, bookRepo, answerRepo)
 	bookService := service.NewBookService(bookRepo)
@@ -53,11 +60,12 @@ func main() {
 	// Инициализация хендлеров
 	testHandler := handlers.NewTestHandler(sessionService, bookService, templateManager)
 	authHandler := handlers.NewAuthHandler(userService, templateManager)
-	registerHandler := handlers.NewRegistrationHandler(userService, sessionService, bookService, templateManager.GetTemplate())
+	bookHandler := handlers.NewBookHandler(bookService, templateManager)
+	registerHandler := handlers.NewRegistrationHandler(userService, sessionService, bookService, templateManager)
 	profileHandler := handlers.NewProfileHandler(userService, sessionService, bookService, templateManager)
 
 	// Мидлвары
-	authMiddleware := middleware.AuthMiddleware(userService)
+	authMiddleware := middleware.AuthMiddleware(authService)
 
 	// Роутер
 	r := chi.NewRouter()
@@ -68,7 +76,7 @@ func main() {
 
 	// Публичные маршруты
 	r.Get("/", testHandler.ShowTest)
-	r.Get("/login", authHandler.ShowLogin)
+	r.Get("/login", authHandler.ShowLoginPage)
 	r.Get("/register", registerHandler.ShowRegistrationForm)
 	r.Post("/register", registerHandler.Register)
 	r.Post("/login", authHandler.Login)
@@ -77,7 +85,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
 
-		r.Get("/logout", authHandler.Logout)
+		// r.Get("/logout", authHandler.Logout)
 
 		r.Route("/profile", func(r chi.Router) {
 			r.Get("/", profileHandler.GetUserProfile)
