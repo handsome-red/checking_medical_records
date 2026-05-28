@@ -1,10 +1,10 @@
-// internal/service/session.go
+// internal/service/session_service.go
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"med_book/internal/model"
@@ -13,17 +13,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
-
-const (
-	sessionDuration  = time.Hour
-	numberOfQuestion = 5
-)
-
-type SessionServiceInterface struct {
-	sessionRepo *repository.SessionRepository
-	bookRepo    *repository.BookRepository
-	answerRepo  *repository.AnswerRepository
-}
 
 type SessionService struct {
 	sessionRepo *repository.SessionRepository
@@ -45,315 +34,278 @@ func NewSessionService(
 
 // ========== СОЗДАНИЕ СЕССИИ ==========
 
-// CreateSession создаёт новую сессию с книгами и вопросами
-func (s *SessionService) CreateSession(userID, bookID uuid.UUID) (*model.Session, error) {
-	// 1. Создаём сессию
-	session := s
+// StartTest начинает новый тест с конкретной книгой
+func (s *SessionService) StartTest(ctx context.Context, userID, bookID uuid.UUID, duration time.Duration) (*model.Session, error) {
+	// 1. Проверяем, нет ли незавершённой сессии
+	unfinished, err := s.sessionRepo.FindUnfinishedByUserID(ctx, userID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check unfinished session: %w", err)
+	}
+	if unfinished != nil {
+		return nil, errors.New("you have an unfinished session")
+	}
 
-	if err := s.repo.CreateSession(session); err != nil {
+	// 2. Проверяем лимит (один тест в день)
+	canStart, err := s.CanStartNewTest(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !canStart {
+		nextTime, _ := s.GetNextAvailableTime(ctx, userID)
+		return nil, fmt.Errorf("you can start a new test only after %s", nextTime.Format("15:04 02.01.2006"))
+	}
+
+	// 3. Получаем максимальный балл за книгу
+	maxScore, err := s.bookRepo.GetMaxScore(ctx, bookID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get max score: %w", err)
+	}
+
+	// 4. Создаём сессию
+	var session *model.Session
+	if duration > 0 {
+		session = model.NewSession(userID, bookID, duration, maxScore)
+	} else {
+		session = model.NewUnlimitedSession(userID, bookID, maxScore)
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// 2. Сохраняем книги и вопросы
-	var allQuestions []model.SessionQuestion
-	globalIndex := 0
-
-	for bookIdx, bookID := range bookIDs {
-		// Сохраняем книгу
-		sessionBook := &model.SessionBook{
-			SessionID:  session.ID,
-			BookID:     bookID,
-			OrderIndex: bookIdx,
-		}
-		if err := s.repo.CreateSessionBook(sessionBook); err != nil {
-			return nil, fmt.Errorf("failed to create session book: %w", err)
-		}
-
-		// Получаем вопросы из книги
-		book, err := s.testService.GetBook(bookID)
-		if err != nil {
-			return nil, err
-		}
-
-		selectedQuestions := s.selectRandomQuestions(book.Questions, numberOfQuestion)
-
-		// Сохраняем вопросы
-		for _, question := range selectedQuestions {
-			sessionQuestion := &model.SessionQuestion{
-				SessionID:  session.ID,
-				BookID:     bookID,
-				QuestionID: question.ID,
-				OrderIndex: globalIndex,
-			}
-			if err := s.repo.CreateSessionQuestion(sessionQuestion); err != nil {
-				return nil, fmt.Errorf("failed to create session question: %w", err)
-			}
-			allQuestions = append(allQuestions, *sessionQuestion)
-			globalIndex++
-		}
-	}
-
-	// 3. Создаём прогресс (начинаем с первого вопроса первой книги)
-	if len(allQuestions) == 0 {
-		return nil, errors.New("no questions in session")
-	}
-
-	progress := &model.SessionProgress{
-		SessionID:         session.ID,
-		CurrentBookIndex:  0,
-		CurrentQIndex:     0,
-		CurrentBookID:     bookIDs[0],
-		CurrentQuestionID: allQuestions[0].QuestionID,
-		CompletedAt:       nil,
-	}
-
-	if err := s.repo.CreateProgress(progress); err != nil {
-		return nil, fmt.Errorf("failed to create progress: %w", err)
 	}
 
 	return session, nil
 }
 
-func (s *SessionService) selectRandomQuestions(questions []model.Question, count int) []model.Question {
-	if count <= 0 || len(questions) == 0 {
-		return []model.Question{}
-	}
-
-	// Если запрошено больше, чем есть вопросов - берём все
-	if count >= len(questions) {
-		count = len(questions)
-	}
-
-	shuffled := make([]model.Question, len(questions))
-	copy(shuffled, questions)
-	rand.NewSource(time.Now().UnixNano())
-	rand.Shuffle(len(shuffled), func(i, j int) {
-		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
-	})
-
-	return shuffled[:count]
-}
-
-// ========== ПОЛУЧЕНИЕ ТЕКУЩИХ ДАННЫХ ==========
-
-func (s *SessionService) GetAllSessions() ([]*model.Session, error) {
-	return s.repo.GetAllSessions()
-}
+// ========== ПОЛУЧЕНИЕ ДАННЫХ ==========
 
 // GetSessionByID возвращает сессию по ID
-func (s *SessionService) GetSessionByID(sessionID uuid.UUID) (*model.Session, error) {
-	return s.repo.FindByID(sessionID)
-}
-
-// GetUserSessions возвращает все сессии пользователя
-func (s *SessionService) GetUserSessions(userID uuid.UUID) ([]*model.Session, error) {
-	return s.repo.FindByUserID(userID)
-}
-
-// GetCurrentQuestionID возвращает ID текущего вопроса
-func (s *SessionService) GetCurrentQuestionID(sessionID uuid.UUID) (int, error) {
-	progress, err := s.repo.GetProgress(sessionID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get progress: %w", err)
-	}
-
-	return progress.CurrentQuestionID, nil
-}
-
-// GetCurrentQuestion возвращает полный объект текущего вопроса
-func (s *SessionService) GetCurrentQuestion(sessionID uuid.UUID) (*model.Question, error) {
-	questionID, err := s.GetCurrentQuestionID(sessionID)
+func (s *SessionService) GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*model.Session, error) {
+	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.testService.GetQuestion(questionID)
+	// Проверяем истечение времени
+	if session.IsExpired() {
+		if err := session.Expire(); err == nil {
+			s.sessionRepo.Update(ctx, session)
+		}
+	}
+
+	return session, nil
 }
 
-// GetUserAttempts возвращает количество попыток прохождения книги пользователем
-func (s *SessionService) GetUserAttempts(userID uuid.UUID, bookID int) (int, error) {
-	book, err := s.testService.GetBook(bookID)
-	if err != nil {
-		return 0, fmt.Errorf("book")
-	}
-
-	return s.testService.GetUserAttempts(userID, bookID)
+// GetUserSessions возвращает все сессии пользователя
+func (s *SessionService) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*model.Session, error) {
+	return s.sessionRepo.FindByUserID(ctx, userID)
 }
 
-// GetCurrentProgress возвращает текущий прогресс
-// func (s *SessionService) GetCurrentProgress(sessionID uuid.UUID) (*model.SessionProgress, error) {
-// 	return s.repo.GetProgress(sessionID)
-// }
+// GetCurrentQuestion возвращает текущий неотвеченный вопрос
+func (s *SessionService) GetCurrentQuestion(ctx context.Context, sessionID uuid.UUID) (*model.Question, error) {
+	// 1. Получаем сессию
+	session, err := s.GetSessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
 
-// GetSessionQuestions возвращает все вопросы сессии
-func (s *SessionService) GetSessionQuestions(sessionID uuid.UUID) ([]model.SessionQuestion, error) {
-	return s.repo.FindQuestionsBySessionID(sessionID)
+	// 2. Проверяем статус
+	if session.IsCompleted() {
+		return nil, errors.New("session already completed")
+	}
+	if session.IsExpired() {
+		return nil, errors.New("session expired")
+	}
+
+	// 3. Получаем已回答 вопросы
+	answeredQuestions, err := s.answerRepo.GetAnsweredQuestionIDs(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Получаем все вопросы книги
+	questions, err := s.bookRepo.GetQuestionsWithOptions(ctx, session.BookID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Находим первый неотвеченный вопрос
+	for _, q := range questions {
+		if !containsUUID(answeredQuestions, q.ID) {
+			return &q, nil
+		}
+	}
+
+	// Все вопросы已回答 - завершаем сессию
+	if err := s.CompleteSession(ctx, sessionID); err != nil {
+		return nil, err
+	}
+
+	return nil, errors.New("all questions answered")
 }
 
-// GetSessionBooks возвращает все книги сессии
-func (s *SessionService) GetSessionBooks(sessionID uuid.UUID) ([]model.SessionBook, error) {
-	return s.repo.FindBooksBySessionID(sessionID)
-}
-
-// ========== НАВИГАЦИЯ ==========
-
-// MoveToNextQuestion перемещает к следующему вопросу
-func (s *SessionService) MoveToNextQuestion(sessionID uuid.UUID) error {
-	// 1. Получаем прогресс
-	progress, err := s.repo.GetProgress(sessionID)
-	if err != nil {
-		return err
-	}
-
-	// 2. Получаем все вопросы
-	questions, err := s.repo.FindQuestionsBySessionID(sessionID)
-	if err != nil {
-		return err
-	}
-
-	totalQuestions := len(questions)
-
-	// 3. Проверяем, не последний ли вопрос
-	if progress.CurrentQIndex+1 >= totalQuestions {
-		// Тест закончен
-		return s.CompleteSession(sessionID)
-	}
-
-	// 4. Переходим к следующему вопросу
-	progress.CurrentQIndex++
-	progress.CurrentQuestionID = questions[progress.CurrentQIndex].QuestionID
-
-	// Обновляем книгу, если нужно (если книга изменилась)
-	if questions[progress.CurrentQIndex].BookID != progress.CurrentBookID {
-		progress.CurrentBookID = questions[progress.CurrentQIndex].BookID
-		progress.CurrentBookIndex++
-	}
-
-	return s.repo.UpdateProgress(progress)
-}
-
-// MoveToPreviousQuestion перемещает к предыдущему вопросу (если нужно)
-func (s *SessionService) MoveToPreviousQuestion(sessionID uuid.UUID) error {
-	progress, err := s.repo.GetProgress(sessionID)
-	if err != nil {
-		return err
-	}
-
-	if progress.CurrentQIndex == 0 {
-		return errors.New("already at first question")
-	}
-
-	questions, err := s.repo.FindQuestionsBySessionID(sessionID)
-	if err != nil {
-		return err
-	}
-
-	progress.CurrentQIndex--
-	progress.CurrentQuestionID = questions[progress.CurrentQIndex].QuestionID
-
-	return s.repo.UpdateProgress(progress)
+// GetAnswersBySession возвращает все ответы пользователя
+func (s *SessionService) GetAnswersBySession(ctx context.Context, sessionID uuid.UUID) ([]model.UserAnswer, error) {
+	return s.answerRepo.FindBySessionID(ctx, sessionID)
 }
 
 // ========== ОТВЕТЫ ==========
 
-// SaveAnswer сохраняет ответ пользователя
-func (s *SessionService) SaveAnswer(sessionID uuid.UUID, questionID, answerID int) error {
-	answer := &model.SessionAnswer{
+// SubmitAnswer сохраняет ответ и обновляет счёт
+func (s *SessionService) SubmitAnswer(ctx context.Context, sessionID uuid.UUID, questionID, optionID uuid.UUID) error {
+	// Начинаем транзакцию
+	tx, err := s.sessionRepo.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 1. Получаем сессию
+	session, err := tx.FindByID(sessionID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 2. Проверяем статус
+	if session.IsCompleted() {
+		tx.Rollback()
+		return errors.New("session already completed")
+	}
+	if session.IsExpired() {
+		tx.Rollback()
+		return errors.New("session expired")
+	}
+
+	// 3. Проверяем, не отвечал ли уже на этот вопрос
+	alreadyAnswered, err := s.answerRepo.ExistsBySessionAndQuestion(ctx, sessionID, questionID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if alreadyAnswered {
+		tx.Rollback()
+		return errors.New("question already answered")
+	}
+
+	// 4. Получаем вариант ответа
+	option, err := s.bookRepo.GetOptionByID(ctx, optionID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 5. Создаём ответ
+	answer := &model.UserAnswer{
 		SessionID:  sessionID,
 		QuestionID: questionID,
-		AnswerID:   answerID,
-	}
-	return s.repo.CreateAnswer(answer)
-}
-
-// GetAnswersBySession возвращает все ответы пользователя
-func (s *SessionService) GetAnswersBySession(sessionID uuid.UUID) ([]model.SessionAnswer, error) {
-	return s.repo.FindAnswersBySessionID(sessionID)
-}
-
-// GetAnswerByQuestion возвращает ответ на конкретный вопрос
-func (s *SessionService) GetAnswerByQuestion(sessionID uuid.UUID, questionID int) (*model.SessionAnswer, error) {
-	answers, err := s.repo.FindAnswersBySessionID(sessionID)
-	if err != nil {
-		return nil, err
+		OptionID:   optionID,
+		IsCorrect:  option.IsCorrect,
+		AnsweredAt: time.Now(),
 	}
 
-	for _, answer := range answers {
-		if answer.QuestionID == questionID {
-			return &answer, nil
+	if option.IsCorrect {
+		question, _ := s.bookRepo.GetQuestionByID(ctx, questionID)
+		if question != nil {
+			answer.Points = question.Points
 		}
 	}
 
-	return nil, errors.New("answer not found")
+	if err := tx.CreateAnswer(answer); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 6. Обновляем счёт сессии
+	if option.IsCorrect {
+		if err := session.AddPoints(answer.Points); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Update(session); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// 7. Проверяем, все ли вопросы已回答
+	answeredCount, err := tx.CountAnswers(sessionID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	totalQuestions, err := s.bookRepo.CountQuestions(ctx, session.BookID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if answeredCount >= totalQuestions {
+		if err := session.Complete(); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Update(session); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ========== ЗАВЕРШЕНИЕ СЕССИИ ==========
 
 // CompleteSession завершает сессию
-func (s *SessionService) CompleteSession(sessionID uuid.UUID) error {
-	progress, err := s.repo.GetProgress(sessionID)
+func (s *SessionService) CompleteSession(ctx context.Context, sessionID uuid.UUID) error {
+	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
-	progress.CompletedAt = &now
+	if err := session.Complete(); err != nil {
+		return err
+	}
 
-	return s.repo.UpdateProgress(progress)
+	return s.sessionRepo.Update(ctx, session)
 }
 
-// IsSessionCompleted проверяет, завершена ли сессия
-func (s *SessionService) IsSessionCompleted(sessionID uuid.UUID) (bool, error) {
-	progress, err := s.repo.GetProgress(sessionID)
+// AbandonSession бросает сессию
+func (s *SessionService) AbandonSession(ctx context.Context, sessionID uuid.UUID) error {
+	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return progress.CompletedAt != nil, nil
+	if err := session.Abandon(); err != nil {
+		return err
+	}
+
+	return s.sessionRepo.Update(ctx, session)
 }
 
-// ========== ПРОГРЕСС ==========
-
-// GetProgress возвращает прогресс
-func (s *SessionService) GetProgress(sessionID uuid.UUID) (*model.SessionProgress, error) {
-	return s.repo.GetProgress(sessionID)
-}
-
-// GetProgressPercentage возвращает процент прохождения теста
-func (s *SessionService) GetProgressPercentage(sessionID uuid.UUID) (float64, error) {
-	questions, err := s.repo.FindQuestionsBySessionID(sessionID)
-	if err != nil {
-		return 0, err
-	}
-
-	answers, err := s.repo.FindAnswersBySessionID(sessionID)
-	if err != nil {
-		return 0, err
-	}
-
-	total := len(questions)
-	if total == 0 {
-		return 0, nil
-	}
-
-	return float64(len(answers)) / float64(total) * 100, nil
-}
-
-// ========== ЛИМИТ ==========
+// ========== ЛИМИТЫ ==========
 
 // CanStartNewTest проверяет, может ли пользователь начать новый тест сегодня
-func (s *SessionService) CanStartNewTest(userID uuid.UUID) (bool, error) {
-	// Проверяем последний завершённый тест
-	_, progress, err := s.repo.FindLastCompletedByUserID(userID)
+func (s *SessionService) CanStartNewTest(ctx context.Context, userID uuid.UUID) (bool, error) {
+	lastSession, err := s.sessionRepo.FindLastCompletedByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true, nil // нет завершённых тестов
+			return true, nil
 		}
 		return false, err
 	}
 
+	if lastSession == nil {
+		return true, nil
+	}
+
 	// Если тест завершён сегодня - нельзя
-	if progress.CompletedAt != nil && isSameDay(*progress.CompletedAt, time.Now()) {
+	if lastSession.CompletedAt != nil && isSameDay(*lastSession.CompletedAt, time.Now()) {
 		return false, nil
 	}
 
@@ -361,8 +313,8 @@ func (s *SessionService) CanStartNewTest(userID uuid.UUID) (bool, error) {
 }
 
 // GetNextAvailableTime возвращает время следующей доступной попытки
-func (s *SessionService) GetNextAvailableTime(userID uuid.UUID) (time.Time, error) {
-	_, progress, err := s.repo.FindLastCompletedByUserID(userID)
+func (s *SessionService) GetNextAvailableTime(ctx context.Context, userID uuid.UUID) (time.Time, error) {
+	lastSession, err := s.sessionRepo.FindLastCompletedByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return time.Time{}, nil
@@ -370,25 +322,38 @@ func (s *SessionService) GetNextAvailableTime(userID uuid.UUID) (time.Time, erro
 		return time.Time{}, err
 	}
 
-	if progress.CompletedAt == nil {
+	if lastSession == nil || lastSession.CompletedAt == nil {
 		return time.Time{}, nil
 	}
 
-	return progress.CompletedAt.Add(24 * time.Hour), nil
+	return lastSession.CompletedAt.Add(24 * time.Hour), nil
 }
 
 // HasUnfinishedSession проверяет, есть ли у пользователя незавершённая сессия
-func (s *SessionService) HasUnfinishedSession(userID uuid.UUID) (bool, *model.Session, error) {
-	session, err := s.repo.FindUnfinishedByUserID(userID)
+func (s *SessionService) HasUnfinishedSession(ctx context.Context, userID uuid.UUID) (bool, *model.Session, error) {
+	session, err := s.sessionRepo.FindUnfinishedByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil, nil
 		}
 		return false, nil, err
 	}
-	return true, session, nil
+	return session != nil, session, nil
 }
 
-func isSameDay(t time.Time, ref time.Time) bool {
-	return t.Year() == ref.Year() && t.YearDay() == ref.YearDay()
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+
+func isSameDay(t1, t2 time.Time) bool {
+	y1, m1, d1 := t1.Date()
+	y2, m2, d2 := t2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+func containsUUID(ids []uuid.UUID, id uuid.UUID) bool {
+	for _, i := range ids {
+		if i == id {
+			return true
+		}
+	}
+	return false
 }

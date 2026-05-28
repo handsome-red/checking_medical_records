@@ -14,12 +14,10 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(
-	authService *service.AuthService,
 	userService *service.UserService,
 	templates *templates.TemplatesManager,
 ) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
 		userService: userService,
 		templates:   templates,
 	}
@@ -42,9 +40,14 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Ошибка обработки формы", http.StatusBadRequest)
+		return
+	}
+
 	email := r.FormValue("email")
 	password := r.FormValue("password")
-	user, err := h.userService.Authenticate(email, password)
+	user, err := h.userService.Authenticate(r.Context(), email, password)
 	if err != nil {
 		data := map[string]interface{}{
 			"Error": "Неверный email или пароль",
@@ -96,7 +99,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	patronymic := r.FormValue("patronymic")
 	password := r.FormValue("password")
 
-	user, err := h.userService.RegisterUser(email, firstName, lastName, patronymic, password)
+	user, err := h.userService.Register(r.Context(), email, firstName, lastName, patronymic, password)
 	if err != nil {
 		http.Error(w, "error create user: "+err.Error(), http.StatusBadRequest)
 		return

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"med_book/internal/config"
 	"med_book/internal/database"
 	"med_book/internal/handlers"
 	"med_book/internal/middleware"
@@ -17,99 +16,88 @@ import (
 )
 
 const (
-	// defaultServerAddress - адрес сервера по умолчанию
 	defaultServerAddress = ":8080"
-
-	// shutdownTimeout - таймаут для graceful shutdown
-	shutdownTimeout = 30 * time.Second
-
-	// uploadsPath - путь к директории с загруженными файлами
-	uploadsPath = "/uploads/*"
-
-	// staticPath - путь к статическим файлам
-	staticPath = "/static/*"
-
-	// uploadsDir - директория для загрузок
-	uploadsDir = "uploads"
-
-	// staticDir - директория со статикой
-	staticDir = "./static"
+	shutdownTimeout      = 30 * time.Second
 )
 
 func main() {
-	dbConfig, err := config.LoadConfig()
-	if err != nil {
-		log.Fatal("Failed to get config:", err)
-	}
-
-	db, err := database.NewDatabase(dbConfig)
+	// Подключение к БД
+	db, err := database.NewDatabaseFromEnv()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
 
-	// Автоматическая миграция (создание таблиц)
-	if err := database.Migrate(db); err != nil {
+	// Миграция
+	if err := database.Migrate(db.GetDB()); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
 
-	userRepo := repository.NewUserRepository(db)
-	sessionRepo := repository.NewSessionRepository(db)
+	// Инициализация репозиториев
+	userRepo := repository.NewUserRepository(db.GetDB())
+	sessionRepo := repository.NewSessionRepository(db.GetDB())
+	bookRepo := repository.NewBookRepository(db.GetDB())
+	answerRepo := repository.NewAnswerRepository(db.GetDB())
+
+	// Инициализация сервисов
 	userService := service.NewUserService(userRepo)
-	testService, err := service.NewTestService("")
-	if err != nil {
-		log.Fatal("Failed to create testService:", err)
-	}
-	sessionService := service.NewSessionService(sessionRepo, testService)
-	profileService := service.NewProfileService(sessionRepo, sessionService)
-	authService := service.NewAuthService("my-secret-key")
+	sessionService := service.NewSessionService(sessionRepo, bookRepo, answerRepo)
+	bookService := service.NewBookService(bookRepo)
 
-	middleware := middleware.AuthMiddleware(authService)
-
+	// Инициализация шаблонов
 	templateManager, err := templates.NewTemplatesManager("internal/handlers/templates/*.html")
 	if err != nil {
-		log.Fatal("Failed to create TemplateMAnager:", err)
+		log.Fatal("Failed to create TemplateManager:", err)
 	}
 
-	testHandler := handlers.NewTestHandler(testService, sessionService, templateManager)
-	profileHandler := handlers.NewProfileHandler(profileService, sessionService, userService, testService, templateManager)
-	authHandler := handlers.NewAuthHandler(authService, userService, templateManager)
+	// Инициализация хендлеров
+	testHandler := handlers.NewTestHandler(sessionService, bookService, templateManager)
+	authHandler := handlers.NewAuthHandler(userService, templateManager)
+	registerHandler := handlers.NewRegistrationHandler(userService, sessionService, bookService, templateManager.GetTemplate())
+	profileHandler := handlers.NewProfileHandler(userService, sessionService, bookService, templateManager)
 
+	// Мидлвары
+	authMiddleware := middleware.AuthMiddleware(userService)
+
+	// Роутер
 	r := chi.NewRouter()
 
-	r.Handle("/uploads/*", http.StripPrefix("/uploads/",
-		http.FileServer(http.Dir("uploads"))))
-	r.Handle("/static/*", http.StripPrefix("/static/",
-		http.FileServer(http.Dir("./static"))))
+	// Статические файлы
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
-	r.Get("/", testHandler.StartHandler)
-	r.Get("/login", authHandler.ShowLoginPage)
-	r.Route("/api", func(r chi.Router) {
-		r.Route("/registration", func(r chi.Router) {
-			// r.Get("/", registrationHandler.ShowRegistrationForm)
-			// r.Post("/", registrationHandler.Register)
-			r.Get("/", authHandler.ShowRegisterPage)
-			r.Post("/", authHandler.Register)
-		})
-	})
+	// Публичные маршруты
+	r.Get("/", testHandler.ShowTest)
+	r.Get("/login", authHandler.ShowLogin)
+	r.Get("/register", registerHandler.ShowRegistrationForm)
+	r.Post("/register", registerHandler.Register)
+	r.Post("/login", authHandler.Login)
 
+	// Защищённые маршруты
 	r.Group(func(r chi.Router) {
-		r.Use(middleware)
+		r.Use(authMiddleware)
+
+		r.Get("/logout", authHandler.Logout)
 
 		r.Route("/profile", func(r chi.Router) {
 			r.Get("/", profileHandler.GetUserProfile)
-			r.Get("/sessions", profileHandler.GetUserSessions)
-			r.Get("/session/{id}", profileHandler.GetSessionDetails)
 		})
 
 		r.Route("/test", func(r chi.Router) {
 			r.Get("/", testHandler.ShowTest)
 			r.Post("/submit", testHandler.SubmitAnswer)
 			r.Get("/result", testHandler.ShowResult)
+			r.Post("/abandon", testHandler.AbandonTest)
+		})
+
+		r.Route("/books", func(r chi.Router) {
+			r.Get("/", bookHandler.GetAllBooks)
+			r.Get("/{id}", bookHandler.GetBookByID)
+			r.Get("/{id}/start", testHandler.StartTest)
 		})
 	})
 
-	log.Println("Сервер запущен на http://localhost:8080")
+	log.Println("🚀 Сервер запущен на http://localhost:8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		log.Fatalf("Сервер завершился с ошибкой: %v", err)
 	}

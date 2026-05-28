@@ -10,10 +10,10 @@ import (
 
 type User struct {
 	ID           uuid.UUID `json:"id" db:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	Email        string    `json:"email" db:"email" gorm:"not null;size:50"`
 	FirstName    string    `json:"first_name" db:"first_name" gorm:"not null;size:50"`
 	LastName     string    `json:"last_name" db:"last_name" gorm:"not null;size:50"`
 	Patronymic   string    `json:"patronymic" db:"patronymic" gorm:"not null;size:50"`
+	Email        string    `json:"email" db:"email" gorm:"not null;size:50"`
 	PasswordHash string    `json:"-" db:"password_hash" gorm:"not null"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `json:"updated_at,omitempty" db:"updated_at" gorm:"autoUpdateTime"`
@@ -23,8 +23,8 @@ func (User) TableName() string {
 	return "users"
 }
 
-func NewUser(firstName, lastName, patronymic, password string) (*User, error) {
-	if len(firstName) == 0 || len(lastName) == 0 || len(patronymic) == 0 {
+func NewUser(firstName, lastName, patronymic, email, password string) (*User, error) {
+	if len(firstName) == 0 || len(lastName) == 0 || len(patronymic) == 0 || len(email) == 0 {
 		return nil, errors.New("invalid name")
 	}
 
@@ -42,6 +42,7 @@ func NewUser(firstName, lastName, patronymic, password string) (*User, error) {
 		FirstName:    firstName,
 		LastName:     lastName,
 		Patronymic:   patronymic,
+		Email:        email,
 		PasswordHash: string(hashedPassword),
 		CreatedAt:    time.Now(),
 	}, nil

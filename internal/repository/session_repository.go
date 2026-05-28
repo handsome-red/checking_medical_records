@@ -1,92 +1,191 @@
+// internal/repository/session_repository.go
 package repository
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"med_book/internal/database"
+
 	"med_book/internal/model"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
-type UserBookStat struct {
-	BookID         uuid.UUID `json:"book_id"`
-	BookName       string    `json:"book_name"`
-	TotalQuestions int       `json:"total_questions"`
-	BestScore      int       `json:"best_score"`
-	MaxScore       int       `json:"max_score"`
-	AttemptsCount  int       `json:"attempts_count"`
-	Percent        float64   `json:"percent"`
-}
-
-type SessionRepositoryInterface interface {
-	// CRUD
-	Create(session *model.Session) error
-	GetByID(sessionID uuid.UUID) (*model.Session, error)
-	Update(session *model.Session) error
-	Delete(sessionID uuid.UUID) error
-
-	FindByUserID(ctx context.Context, userID uuid.UUID) (*model.Session, error)
-
-	GetUserBooksStats(ctx context.Context, userID uuid.UUID) ([]*UserBookStat, error)
-
-	GetBookBySessionID(sessionID uuid.UUID) (*model.Book, error)
-	GetNumberOfQuestions(ctx context.Context, bookID uuid.UUID) (int, error)
-}
-
 type SessionRepository struct {
-	db *database.Database
+	db *gorm.DB
 }
 
-func NewSessionRepository(db *database.Database) *SessionRepository {
+func NewSessionRepository(db *gorm.DB) *SessionRepository {
 	return &SessionRepository{db: db}
 }
 
-func (r *SessionRepository) Create(session *model.Session) error {
-	return r.db.GetDB().Create(session).Error
+// ========== БАЗОВЫЕ CRUD ==========
+
+// Create создаёт новую сессию
+func (r *SessionRepository) Create(ctx context.Context, session *model.Session) error {
+	return r.db.WithContext(ctx).Create(session).Error
 }
 
-func (r *SessionRepository) GetByID(sessionID uuid.UUID) (*model.Session, error) {
+// FindByID находит сессию по ID
+func (r *SessionRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.Session, error) {
 	var session model.Session
-	result := r.db.GetDB().Where("id = ?", sessionID).First(&session)
+	result := r.db.WithContext(ctx).
+		Preload("User").
+		Preload("Book").
+		First(&session, "id = ?", id)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("session with id %v not found", id)
+	}
 	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("session with id: %v not found", sessionID)
-		}
+		return nil, result.Error
 	}
 	return &session, nil
 }
 
-func (r *SessionRepository) Update(session *model.Session) error {
-	return r.db.GetDB().Save(session).Error
+// Update обновляет сессию
+func (r *SessionRepository) Update(ctx context.Context, session *model.Session) error {
+	return r.db.WithContext(ctx).Save(session).Error
 }
 
-func (r *SessionRepository) Delete(sessionID uuid.UUID) error {
-	return r.db.GetDB().Delete(&model.Session{}, "id = ?", sessionID).Error
-}
-
-func (r *SessionRepository) FindByUserID(userID uuid.UUID) (*model.Session, error) {
-	var session model.Session
-	result := r.db.GetDB().Where("user_id = ?", userID).First(&session)
+// Delete удаляет сессию
+func (r *SessionRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Delete(&model.Session{}, "id = ?", id)
 	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("session with user_id: %v not found", userID)
-		}
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("session with id %v not found", id)
+	}
+	return nil
+}
+
+// ========== ПОИСК ==========
+
+// FindByUserID возвращает все сессии пользователя
+func (r *SessionRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Session, error) {
+	var sessions []*model.Session
+	result := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&sessions)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to find sessions for user %v: %w", userID, result.Error)
+	}
+	return sessions, nil
+}
+
+// FindUnfinishedByUserID находит незавершённую сессию пользователя
+func (r *SessionRepository) FindUnfinishedByUserID(ctx context.Context, userID uuid.UUID) (*model.Session, error) {
+	var session model.Session
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND status IN ?", userID, []string{
+			string(model.SessionStatusInProgress),
+		}).
+		Order("created_at DESC").
+		First(&session)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil // нет незавершённой сессии
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to find unfinished session: %w", result.Error)
 	}
 	return &session, nil
 }
 
+// FindLastCompletedByUserID находит последнюю завершённую сессию
+func (r *SessionRepository) FindLastCompletedByUserID(ctx context.Context, userID uuid.UUID) (*model.Session, error) {
+	var session model.Session
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND status = ?", userID, model.SessionStatusCompleted).
+		Where("completed_at IS NOT NULL").
+		Order("completed_at DESC").
+		First(&session)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to find last completed session: %w", result.Error)
+	}
+	return &session, nil
+}
+
+// ========== ТРАНЗАКЦИИ ==========
+
+// SessionTx транзакционный репозиторий
+type SessionTx struct {
+	tx *gorm.DB
+}
+
+// Begin начинает транзакцию
+func (r *SessionRepository) Begin(ctx context.Context) (*SessionTx, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &SessionTx{tx: tx}, nil
+}
+
+// FindByID в транзакции
+func (tx *SessionTx) FindByID(sessionID uuid.UUID) (*model.Session, error) {
+	var session model.Session
+	result := tx.tx.First(&session, "id = ?", sessionID)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &session, result.Error
+}
+
+// Update в транзакции
+func (tx *SessionTx) Update(session *model.Session) error {
+	return tx.tx.Save(session).Error
+}
+
+// CreateAnswer в транзакции
+func (tx *SessionTx) CreateAnswer(answer *model.UserAnswer) error {
+	return tx.tx.Create(answer).Error
+}
+
+// CountAnswers в транзакции
+func (tx *SessionTx) CountAnswers(sessionID uuid.UUID) (int, error) {
+	var count int64
+	err := tx.tx.Model(&model.UserAnswer{}).
+		Where("session_id = ?", sessionID).
+		Count(&count).Error
+	return int(count), err
+}
+
+// Commit завершает транзакцию
+func (tx *SessionTx) Commit() error {
+	return tx.tx.Commit().Error
+}
+
+// Rollback откатывает транзакцию
+func (tx *SessionTx) Rollback() error {
+	return tx.tx.Rollback().Error
+}
+
+// GetUserBestScoreForBook возвращает лучший результат пользователя по книге
 func (r *SessionRepository) GetUserBestScoreForBook(ctx context.Context, userID, bookID uuid.UUID) (int, error) {
 	var bestScore int
-
-	err := r.db.GetDB().WithContext(ctx).
-		Table("user_book_sessions").
-		Where("user_id = ? AND book_id = ? AND status = ?",
-			userID, bookID, model.SessionStatusCompleted).
+	err := r.db.WithContext(ctx).
+		Model(&model.Session{}).
+		Where("user_id = ? AND book_id = ? AND status = ?", userID, bookID, model.SessionStatusCompleted).
 		Select("COALESCE(MAX(score), 0)").
 		Scan(&bestScore).Error
-
 	return bestScore, err
+}
+
+// GetUserAttempts возвращает количество попыток пользователя по книге
+func (r *SessionRepository) GetUserAttempts(ctx context.Context, userID, bookID uuid.UUID) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&model.Session{}).
+		Where("user_id = ? AND book_id = ? AND status = ?", userID, bookID, model.SessionStatusCompleted).
+		Count(&count).Error
+	return int(count), err
 }

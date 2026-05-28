@@ -8,7 +8,7 @@ import (
 
 type UserAnswer struct {
 	ID         uint      `gorm:"primaryKey;autoIncrement"`
-	SessionID  uint      `gorm:"not null;index"`           // ссылка на сессию (INT для производительности)
+	SessionID  uuid.UUID `gorm:"type:uuid;not null;index"` // ссылка на сессию (INT для производительности)
 	QuestionID uuid.UUID `gorm:"type:uuid;not null;index"` // ссылка на вопрос
 	OptionID   uuid.UUID `gorm:"type:uuid;not null"`       // выбранный вариант ответа
 	IsCorrect  bool      `gorm:"default:false;index"`      // правильный ли ответ (дублируем для скорости)

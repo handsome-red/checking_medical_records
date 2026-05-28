@@ -11,9 +11,9 @@ import (
 )
 
 type UserRepositoryInterface interface {
-	Create(user *model.User) error
+	Create(ctx context.Context, user *model.User) error
 	FindByID(ctx context.Context, userID uuid.UUID) (*model.User, error)
-	FindByEmail(email string) (*model.User, error)
+	FindByEmail(ctx context.Context, email string) (*model.User, error)
 	FindByFIO(fisrtName, lastName, patronymic string) (*model.User, error)
 }
 
@@ -37,12 +37,12 @@ func NewUserRepository(db *database.Database) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (ur *UserRepository) Create(user *model.User) error {
+func (ur *UserRepository) Create(ctx context.Context, user *model.User) error {
 	result := ur.db.GetDB().Create(user)
 	return result.Error
 }
 
-func (ur *UserRepository) FindByID(id uuid.UUID) (*model.User, error) {
+func (ur *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	var user model.User
 	result := ur.db.GetDB().First(&user)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {

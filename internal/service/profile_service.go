@@ -4,23 +4,24 @@ package service
 import (
 	"context"
 	"fmt"
+
 	"med_book/internal/repository"
 
 	"github.com/google/uuid"
 )
 
 type ProfileService struct {
-	userRepo    repository.UserRepositoryInterface
-	sessionRepo repository.SessionRepositoryInterface
-	bookRepo    repository.BookRepositoryInterface
-	answerRepo  repository.AnswerRepositoryInterface
+	userRepo    *repository.UserRepository
+	sessionRepo *repository.SessionRepository
+	bookRepo    *repository.BookRepository
+	answerRepo  *repository.AnswerRepository
 }
 
 func NewProfileService(
-	userRepo repository.UserRepositoryInterface,
-	sessionRepo repository.SessionRepositoryInterface,
-	bookRepo repository.BookRepositoryInterface,
-	answerRepo repository.AnswerRepositoryInterface,
+	userRepo *repository.UserRepository,
+	sessionRepo *repository.SessionRepository,
+	bookRepo *repository.BookRepository,
+	answerRepo *repository.AnswerRepository,
 ) *ProfileService {
 	return &ProfileService{
 		userRepo:    userRepo,
@@ -54,23 +55,51 @@ func (s *ProfileService) GetUserProfile(ctx context.Context, userID uuid.UUID) (
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	// 2. Получаем статистику по всем книгам ОДНИМ ЗАПРОСОМ
-	stats, err := s.sessionRepo.GetUserBooksStats(ctx, userID)
+	// 2. Получаем все книги
+	books, err := s.bookRepo.GetAllBooks(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get stats: %w", err)
+		return nil, fmt.Errorf("failed to get books: %w", err)
 	}
 
-	// 3. Преобразуем в ProfileBook
-	profileBooks := make([]ProfileBook, 0, len(stats))
-	for _, stat := range stats {
-		profileBooks = append(profileBooks, ProfileBook{
-			BookID:        stat.BookID,
-			BookName:      stat.BookName,
-			BestScore:     stat.BestScore,
-			MaxScore:      stat.MaxScore,
-			Percent:       stat.Percent,
-			AttemptsCount: stat.AttemptsCount,
-		})
+	// 3. Для каждой книги собираем статистику
+	profileBooks := make([]ProfileBook, 0, len(books))
+	for _, book := range books {
+		// Получаем лучший результат пользователя по этой книге
+		bestScore, err := s.sessionRepo.GetUserBestScoreForBook(ctx, userID, book.ID)
+		if err != nil {
+			// Если ошибка, просто пропускаем книгу или ставим 0
+			bestScore = 0
+		}
+
+		// Получаем максимальный балл за книгу
+		maxScore, err := s.bookRepo.GetMaxScore(ctx, book.ID)
+		if err != nil {
+			maxScore = 0
+		}
+
+		// Получаем количество попыток
+		attemptsCount, err := s.sessionRepo.GetUserAttempts(ctx, userID, book.ID)
+		if err != nil {
+			attemptsCount = 0
+		}
+
+		// Вычисляем процент
+		percent := 0.0
+		if maxScore > 0 {
+			percent = float64(bestScore) / float64(maxScore) * 100
+		}
+
+		// Добавляем только книги, которые пользователь хоть раз проходил
+		if attemptsCount > 0 || bestScore > 0 {
+			profileBooks = append(profileBooks, ProfileBook{
+				BookID:        book.ID,
+				BookName:      book.Title,
+				BestScore:     bestScore,
+				MaxScore:      maxScore,
+				Percent:       percent,
+				AttemptsCount: attemptsCount,
+			})
+		}
 	}
 
 	return &Profile{

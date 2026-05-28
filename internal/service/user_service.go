@@ -1,10 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"med_book/internal/model"
 	"med_book/internal/repository"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -17,49 +17,32 @@ func NewUserService(userRepo repository.UserRepositoryInterface) *UserService {
 	return &UserService{userRepo: userRepo}
 }
 
-func (s *UserService) RegisterUser(email, firstName, lastName, patronymic, password string) (*model.User, error) {
-	email = strings.TrimSpace(email)
-	firstName = strings.TrimSpace(firstName)
-	lastName = strings.TrimSpace(lastName)
-
-	if firstName == "" || lastName == "" || email == "" {
-		return nil, errors.New("invalid name")
+func (s *UserService) Register(ctx context.Context, email, firstName, lastName, patronymic, password string) (*model.User, error) {
+	// Проверяем, существует ли пользователь
+	existing, err := s.userRepo.FindByEmail(ctx, email)
+	if err == nil && existing != nil {
+		return nil, errors.New("user already exists")
 	}
 
-	if len(password) < 6 {
-		return nil, errors.New("too short password")
+	// Создаём пользователя
+	user, err := model.NewUser(firstName, lastName, patronymic, email, password)
+	if err != nil {
+		return nil, err
 	}
 
-	user := &model.User{
-		ID:           uuid.New(),
-		Email:        email,
-		FirstName:    firstName,
-		LastName:     lastName,
-		Patronymic:   patronymic,
-		PasswordHash: password,
-	}
-
-	if err := s.userRepo.Create(user); err != nil {
+	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
 
 	return user, nil
 }
 
-func (s *UserService) GetUser(id uuid.UUID) (*model.User, error) {
-	return s.userRepo.FindByID(id)
+func (s *UserService) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+	return s.userRepo.FindByID(ctx, id)
 }
 
-func (s *UserService) FindByFIO(fisrtName, lastName, patronymic string) (*model.User, error) {
-	return s.userRepo.FindByFIO(fisrtName, lastName, patronymic)
-}
-
-func (s *UserService) FindByEmail(email string) (*model.User, error) {
-	return s.userRepo.FindByEmail(email)
-}
-
-func (s *UserService) Authenticate(email, password string) (*model.User, error) {
-	user, err := s.FindByEmail(email)
+func (s *UserService) Authenticate(ctx context.Context, email, password string) (*model.User, error) {
+	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}
@@ -69,4 +52,8 @@ func (s *UserService) Authenticate(email, password string) (*model.User, error) 
 	}
 
 	return user, nil
+}
+
+func (s *UserService) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+	return s.userRepo.FindByEmail(ctx, email)
 }
