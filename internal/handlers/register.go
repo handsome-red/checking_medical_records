@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"med_book/internal/model"
 	"med_book/internal/service"
@@ -63,10 +62,8 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	email := r.FormValue("email")
 
-	// Если email не указан, генерируем временный
-	if email == "" {
-		email = fmt.Sprintf("%s.%s@temp.com", firstName, lastName)
-	}
+	fmt.Printf("📝 Регистрация: email='%s', firstName='%s', lastName='%s'\n",
+		email, firstName, lastName)
 
 	ctx := r.Context()
 
@@ -83,68 +80,43 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Проверяем, может ли пользователь начать новый тест сегодня
-	canStart, err := h.sessionService.CanStartNewTest(ctx, user.ID)
-	if err != nil {
-		data := map[string]any{
-			"Error":      "Ошибка проверки доступности теста: " + err.Error(),
-			"FirstName":  firstName,
-			"LastName":   lastName,
-			"Patronymic": patronymic,
-		}
-		h.template.ExecuteTemplate(w, "register.html", data)
-		return
-	}
+	// // 2. Получаем первую книгу для теста
+	// books, err := h.bookService.GetAllBooks(ctx)
+	// if err != nil || len(books) == 0 {
+	// 	data := map[string]any{
+	// 		"Error":      "Книги не найдены",
+	// 		"FirstName":  firstName,
+	// 		"LastName":   lastName,
+	// 		"Patronymic": patronymic,
+	// 	}
+	// 	h.template.ExecuteTemplate(w, "register.html", data)
+	// 	return
+	// }
 
-	if !canStart {
-		nextTime, _ := h.sessionService.GetNextAvailableTime(ctx, user.ID)
-		data := map[string]any{
-			"Error":      fmt.Sprintf("Вы уже проходили тест сегодня. Следующая попытка доступна %s", nextTime.Format("02.01.2006 15:04")),
-			"FirstName":  firstName,
-			"LastName":   lastName,
-			"Patronymic": patronymic,
-		}
-		h.template.ExecuteTemplate(w, "register.html", data)
-		return
-	}
+	// // Берём первую книгу (или можно позволить пользователю выбрать)
+	// bookID := books[0].ID
 
-	// 3. Получаем первую книгу для теста
-	books, err := h.bookService.GetAllBooks(ctx)
-	if err != nil || len(books) == 0 {
-		data := map[string]any{
-			"Error":      "Книги не найдены",
-			"FirstName":  firstName,
-			"LastName":   lastName,
-			"Patronymic": patronymic,
-		}
-		h.template.ExecuteTemplate(w, "register.html", data)
-		return
-	}
+	// // 3. Создаём сессию
+	// session, err := h.sessionService.StartTest(ctx, user.ID, bookID, 30*time.Minute)
+	// if err != nil {
+	// 	data := map[string]any{
+	// 		"Error":      "Ошибка создания сессии: " + err.Error(),
+	// 		"FirstName":  firstName,
+	// 		"LastName":   lastName,
+	// 		"Patronymic": patronymic,
+	// 	}
+	// 	h.template.ExecuteTemplate(w, "register.html", data)
+	// 	return
+	// }
 
-	// Берём первую книгу (или можно позволить пользователю выбрать)
-	bookID := books[0].ID
-
-	// 4. Создаём сессию
-	session, err := h.sessionService.StartTest(ctx, user.ID, bookID, 30*time.Minute)
-	if err != nil {
-		data := map[string]any{
-			"Error":      "Ошибка создания сессии: " + err.Error(),
-			"FirstName":  firstName,
-			"LastName":   lastName,
-			"Patronymic": patronymic,
-		}
-		h.template.ExecuteTemplate(w, "register.html", data)
-		return
-	}
-
-	// 5. Устанавливаем cookies
+	// 4. Устанавливаем cookies
 	h.setAuthCookie(w, user.ID)
-	h.setSessionCookie(w, session.ID)
+	// h.setSessionCookie(w, session.ID)
 
-	fmt.Printf("✅ Пользователь %s %s (ID: %v) зарегистрирован и начал сессию %v\n",
-		user.LastName, user.FirstName, user.ID, session.ID)
+	fmt.Printf("✅ Пользователь %s %s (ID: %v) зарегистрирован\n",
+		user.LastName, user.FirstName, user.ID)
 
-	http.Redirect(w, r, "/test", http.StatusSeeOther)
+	http.Redirect(w, r, "/profile", http.StatusSeeOther)
 }
 
 // findOrCreateUser находит пользователя по ФИО или создаёт нового
@@ -152,14 +124,14 @@ func (h *RegistrationHandler) findOrCreateUser(
 	ctx context.Context,
 	firstName, lastName, patronymic, email, password string,
 ) (*model.User, error) {
-	// Пытаемся найти пользователя по ФИО
-	user, err := h.userService.FindByEmail(ctx, email)
-	if err == nil && user != nil {
-		return user, nil
+	// ✅ Проверяем только по email
+	existing, err := h.userService.FindByEmail(ctx, email)
+	if err == nil && existing != nil {
+		return nil, fmt.Errorf("пользователь с таким email уже существует")
 	}
 
 	// Если не найден, создаём нового
-	user, err = h.userService.Register(ctx, email, firstName, lastName, patronymic, password)
+	user, err := h.userService.Register(ctx, email, firstName, lastName, patronymic, password)
 	if err != nil {
 		return nil, err
 	}

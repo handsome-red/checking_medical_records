@@ -5,16 +5,16 @@ type ImportData struct {
 }
 
 type ImportBook struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	BookPath string `json:"book_path"`
-	// Pages     []Page     `json:"pages,omitempty"`
+	ID        int              `json:"id"`
+	Name      string           `json:"name"`
+	BookPath  string           `json:"book_path"`
+	Pages     []ImportPage     `json:"pages,omitempty"`
 	Questions []ImportQuestion `json:"questions,omitempty"`
 }
 
 type ImportPage struct {
-	ID     int    `json:"id"`
-	BookID int    `json:"book_id"`
+	// ID     int    `json:"id"`
+	// BookID int    `json:"book_id"`
 	Number int    `json:"number"`
 	Path   string `json:"path"`
 }

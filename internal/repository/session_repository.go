@@ -169,6 +169,44 @@ func (tx *SessionTx) Rollback() error {
 	return tx.tx.Rollback().Error
 }
 
+// GetUserBooksStats возвращает статистику по всем книгам пользователя одним запросом
+func (r *SessionRepository) GetUserBooksStats(ctx context.Context, userID uuid.UUID) ([]*UserBookStat, error) {
+	var stats []*UserBookStat
+
+	query := `
+        SELECT 
+            b.id as book_id,
+            b.title as book_name,
+            COALESCE(MAX(s.score), 0) as best_score,
+            COALESCE(q.question_count, 0) as max_score,
+            COUNT(DISTINCT s.id) as attempts_count,
+            ROUND(COALESCE(MAX(s.score), 0)::DECIMAL / NULLIF(q.question_count, 0) * 100, 2) as percent
+        FROM books b
+        CROSS JOIN LATERAL (
+            SELECT COUNT(*) as question_count 
+            FROM questions 
+            WHERE book_id = b.id
+        ) q
+        LEFT JOIN user_book_sessions s ON s.book_id = b.id 
+            AND s.user_id = $1 
+            AND s.status = 'completed'
+        GROUP BY b.id, b.title, q.question_count
+        ORDER BY percent DESC NULLS LAST
+    `
+
+	err := r.db.WithContext(ctx).Raw(query, userID).Scan(&stats).Error
+	return stats, err
+}
+
+type UserBookStat struct {
+	BookID        uuid.UUID `json:"book_id"`
+	BookName      string    `json:"book_name"`
+	BestScore     int       `json:"best_score"`
+	MaxScore      int       `json:"max_score"`
+	Percent       float64   `json:"percent"`
+	AttemptsCount int       `json:"attempts_count"`
+}
+
 // GetUserBestScoreForBook возвращает лучший результат пользователя по книге
 func (r *SessionRepository) GetUserBestScoreForBook(ctx context.Context, userID, bookID uuid.UUID) (int, error) {
 	var bestScore int

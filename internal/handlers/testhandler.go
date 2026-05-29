@@ -33,6 +33,22 @@ func NewTestHandler(
 	}
 }
 
+func (h *TestHandler) ShowStartPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := middleware.GetUserIDFromContext(r.Context()); ok {
+		http.Redirect(w, r, "/profile", http.StatusFound)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Error": nil,
+	}
+
+	if err := h.template.ExecuteTemplate(w, "index.html", data); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GET /test - показать текущий вопрос
 func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 	session, err := h.getSession(r)
@@ -119,57 +135,77 @@ func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /test/submit - обработать ответ
+// internal/handlers/testhandler.go
+
 func (h *TestHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("=== SUBMIT HANDLER START ===")
+
 	session, err := h.getSession(r)
 	if err != nil {
+		fmt.Printf("❌ getSession error: %v\n", err)
 		http.Redirect(w, r, "/books", http.StatusSeeOther)
 		return
 	}
+	fmt.Printf("✅ Session: %s\n", session.ID)
 
 	if err := r.ParseForm(); err != nil {
+		fmt.Printf("❌ ParseForm error: %v\n", err)
 		http.Error(w, "Ошибка обработки формы", http.StatusBadRequest)
 		return
 	}
 
 	questionIDStr := r.FormValue("question_id")
+	fmt.Printf("📝 question_id: %s\n", questionIDStr)
+
 	if questionIDStr == "" {
+		fmt.Println("❌ question_id is empty")
 		http.Error(w, "ID вопроса не указан", http.StatusBadRequest)
 		return
 	}
 
 	questionID, err := uuid.Parse(questionIDStr)
 	if err != nil {
+		fmt.Printf("❌ uuid.Parse error: %v\n", err)
 		http.Error(w, "Неверный ID вопроса", http.StatusBadRequest)
 		return
 	}
 
-	// Получаем выбранные варианты (может быть несколько для multiple-choice)
+	// Получаем выбранные варианты
 	answers := r.Form["answers"]
-	if len(answers) == 0 {
-		http.Error(w, "Выберите ответ", http.StatusBadRequest)
-		return
-	}
+	fmt.Printf("📋 answers: %v (len=%d)\n", answers, len(answers))
 
-	// Для каждого выбранного варианта сохраняем ответ
-	for _, answerIDStr := range answers {
+	// Сохраняем каждый ответ
+	for i, answerIDStr := range answers {
+		fmt.Printf("   Processing answer %d: %s\n", i, answerIDStr)
 		optionID, err := uuid.Parse(answerIDStr)
 		if err != nil {
+			fmt.Printf("   ❌ uuid.Parse error: %v\n", err)
 			continue
 		}
 
 		if err := h.sessionService.SubmitAnswer(r.Context(), session.ID, questionID, optionID); err != nil {
-			fmt.Printf("Ошибка сохранения ответа: %v\n", err)
+			fmt.Printf("   ❌ SubmitAnswer error: %v\n", err)
+		} else {
+			fmt.Printf("   ✅ Answer saved\n")
 		}
 	}
 
-	// Проверяем, завершён ли тест
-	session, _ = h.sessionService.GetSessionByID(r.Context(), session.ID)
+	// Получаем обновлённую сессию
+	session, err = h.sessionService.GetSessionByID(r.Context(), session.ID)
+	if err != nil {
+		fmt.Printf("❌ GetSessionByID error: %v\n", err)
+		http.Error(w, "Ошибка получения сессии", http.StatusInternalServerError)
+		return
+	}
+	fmt.Printf("📊 Session status: %s, completed: %v\n", session.Status, session.IsCompleted())
+
 	if session.IsCompleted() {
-		fmt.Println("Тест завершён!")
+		fmt.Println("🏁 Redirect to result")
 		http.Redirect(w, r, "/test/result", http.StatusSeeOther)
 		return
 	}
 
+	fmt.Println("➡️ Redirect to next question")
 	http.Redirect(w, r, "/test", http.StatusSeeOther)
 }
 
@@ -197,7 +233,6 @@ func (h *TestHandler) ShowResult(w http.ResponseWriter, r *http.Request) {
 		"score":         session.Score,
 		"max_score":     session.MaxScore,
 		"score_percent": session.ScoreProgress(),
-		"is_passed":     session.IsPassed(),
 	}
 
 	h.template.ExecuteTemplate(w, "result.html", data)
@@ -223,6 +258,12 @@ func (h *TestHandler) StartTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, err = h.bookService.GetBookByID(r.Context(), bookID)
+	if err != nil {
+		http.Error(w, "Книга не найдена", http.StatusBadRequest)
+		return
+	}
+
 	fmt.Printf("StartTest для пользователя %v, книга %v\n", userID, bookID)
 
 	// 1. Проверяем, есть ли незавершённая сессия
@@ -239,24 +280,7 @@ func (h *TestHandler) StartTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Проверяем, можно ли начать новый тест сегодня
-	canStart, err := h.sessionService.CanStartNewTest(r.Context(), userID)
-	if err != nil {
-		http.Error(w, "Ошибка проверки лимита", http.StatusInternalServerError)
-		return
-	}
-
-	if !canStart {
-		nextTime, _ := h.sessionService.GetNextAvailableTime(r.Context(), userID)
-		data := map[string]any{
-			"Message":  "Вы уже проходили тест сегодня",
-			"NextTime": nextTime.Format("02.01.2006 15:04"),
-		}
-		h.template.ExecuteTemplate(w, "cooldown.html", data)
-		return
-	}
-
-	// 3. Создаём сессию
+	// 2. Создаём сессию
 	session, err := h.sessionService.StartTest(r.Context(), userID, bookID, 30*time.Minute)
 	if err != nil {
 		fmt.Printf("Ошибка создания сессии: %v\n", err)
@@ -264,10 +288,10 @@ func (h *TestHandler) StartTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Устанавливаем cookie
+	// 3. Устанавливаем cookie
 	h.setSessionCookie(w, session.ID)
 
-	// 5. Редирект на тест
+	// 4. Редирект на тест
 	http.Redirect(w, r, "/test", http.StatusSeeOther)
 }
 

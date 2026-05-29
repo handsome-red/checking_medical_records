@@ -45,23 +45,13 @@ func (s *SessionService) StartTest(ctx context.Context, userID, bookID uuid.UUID
 		return nil, errors.New("you have an unfinished session")
 	}
 
-	// 2. Проверяем лимит (один тест в день)
-	canStart, err := s.CanStartNewTest(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !canStart {
-		nextTime, _ := s.GetNextAvailableTime(ctx, userID)
-		return nil, fmt.Errorf("you can start a new test only after %s", nextTime.Format("15:04 02.01.2006"))
-	}
-
-	// 3. Получаем максимальный балл за книгу
+	// 2. Получаем максимальный балл за книгу
 	maxScore, err := s.bookRepo.GetMaxScore(ctx, bookID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get max score: %w", err)
 	}
 
-	// 4. Создаём сессию
+	// 3. Создаём сессию
 	var session *model.Session
 	if duration > 0 {
 		session = model.NewSession(userID, bookID, duration, maxScore)
@@ -148,11 +138,20 @@ func (s *SessionService) GetAnswersBySession(ctx context.Context, sessionID uuid
 	return s.answerRepo.FindBySessionID(ctx, sessionID)
 }
 
+func (s *SessionService) GetUserBooksStats(ctx context.Context, userID uuid.UUID) ([]*repository.UserBookStat, error) {
+	return s.sessionRepo.GetUserBooksStats(ctx, userID)
+}
+
 // ========== ОТВЕТЫ ==========
 
 // SubmitAnswer сохраняет ответ и обновляет счёт
 func (s *SessionService) SubmitAnswer(ctx context.Context, sessionID uuid.UUID, questionID, optionID uuid.UUID) error {
 	// Начинаем транзакцию
+	fmt.Println("SubmitAnswer")
+	fmt.Printf("   sessionID: %v\n", sessionID)
+	fmt.Printf("   questionID: %v\n", questionID)
+	fmt.Printf("   optionID: %v\n", optionID)
+
 	tx, err := s.sessionRepo.Begin(ctx)
 	if err != nil {
 		return err
@@ -289,45 +288,6 @@ func (s *SessionService) AbandonSession(ctx context.Context, sessionID uuid.UUID
 }
 
 // ========== ЛИМИТЫ ==========
-
-// CanStartNewTest проверяет, может ли пользователь начать новый тест сегодня
-func (s *SessionService) CanStartNewTest(ctx context.Context, userID uuid.UUID) (bool, error) {
-	lastSession, err := s.sessionRepo.FindLastCompletedByUserID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true, nil
-		}
-		return false, err
-	}
-
-	if lastSession == nil {
-		return true, nil
-	}
-
-	// Если тест завершён сегодня - нельзя
-	if lastSession.CompletedAt != nil && isSameDay(*lastSession.CompletedAt, time.Now()) {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-// GetNextAvailableTime возвращает время следующей доступной попытки
-func (s *SessionService) GetNextAvailableTime(ctx context.Context, userID uuid.UUID) (time.Time, error) {
-	lastSession, err := s.sessionRepo.FindLastCompletedByUserID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return time.Time{}, nil
-		}
-		return time.Time{}, err
-	}
-
-	if lastSession == nil || lastSession.CompletedAt == nil {
-		return time.Time{}, nil
-	}
-
-	return lastSession.CompletedAt.Add(24 * time.Hour), nil
-}
 
 // HasUnfinishedSession проверяет, есть ли у пользователя незавершённая сессия
 func (s *SessionService) HasUnfinishedSession(ctx context.Context, userID uuid.UUID) (bool, *model.Session, error) {

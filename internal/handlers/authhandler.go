@@ -14,10 +14,12 @@ type AuthHandler struct {
 }
 
 func NewAuthHandler(
+	authService *service.AuthService,
 	userService *service.UserService,
 	templates *templates.TemplatesManager,
 ) *AuthHandler {
 	return &AuthHandler{
+		authService: authService,
 		userService: userService,
 		templates:   templates,
 	}

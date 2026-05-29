@@ -8,13 +8,21 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type UserRole string
+
+const (
+	RoleUser  UserRole = "user"
+	RoleAdmin UserRole = "admin"
+)
+
 type User struct {
 	ID           uuid.UUID `json:"id" db:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	FirstName    string    `json:"first_name" db:"first_name" gorm:"not null;size:50"`
 	LastName     string    `json:"last_name" db:"last_name" gorm:"not null;size:50"`
 	Patronymic   string    `json:"patronymic" db:"patronymic" gorm:"not null;size:50"`
-	Email        string    `json:"email" db:"email" gorm:"not null;size:50"`
+	Email        string    `json:"email" db:"email" gorm:"not null;size:50;unique"`
 	PasswordHash string    `json:"-" db:"password_hash" gorm:"not null"`
+	Role         UserRole  `gorm:"type:varchar(20);default:'user'"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `json:"updated_at,omitempty" db:"updated_at" gorm:"autoUpdateTime"`
 }
@@ -51,4 +59,8 @@ func NewUser(firstName, lastName, patronymic, email, password string) (*User, er
 func (u *User) CheckPassword(password string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
 	return err == nil
+}
+
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
 }

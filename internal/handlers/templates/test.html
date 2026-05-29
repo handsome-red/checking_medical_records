@@ -15,7 +15,7 @@
                     <div class="test-header">
                         <h1>Тестирование</h1>
                         <div class="test-info">
-                            <span class="book-name">{{.CurrentBook.Name}}</span>
+                            <span class="book-name">{{.book_title}}</span>
                         </div>
                     </div>
                     
@@ -40,7 +40,7 @@
                                 {{range $idx, $opt := .question.Options}}
                                     <div class="option">
                                         <label>
-                                            <input type="checkbox" name="answers" value="{{$idx}}">
+                                            <input type="checkbox" name="answers" value="{{$opt.ID}}">
                                             <span class="option-text">{{$opt.Text}}</span>
                                         </label>
                                     </div>
@@ -50,7 +50,7 @@
                         
                         <div class="button-group">
                             <button type="submit" class="submit-btn">
-                                {{if eq .current .total}}✅ Завершить тест{{else}}➡ Следующий вопрос{{end}}
+                                {{if eq .current .total}}Завершить тест{{else}}Следующий вопрос{{end}}
                             </button>
                         </div>
                     </form>
@@ -64,16 +64,16 @@
                     </div>
                     <div id="document-viewer" class="document-viewer">
                         <div id="pages-container" class="pages-container">
-                            {{if .pages}}
-                                {{range .pages}}
-                                    <div class="page-item">
-                                        <img src="{{.Path}}" alt="Страница {{.Number}}" class="page-image">
-                                        <div class="page-number">Страница {{.Number}}</div>
-                                    </div>
-                                {{end}}
-                            {{else}}
-                                <div class="loading">Нет страниц для отображения</div>
+                        {{if .pages}}
+                            {{range .pages}}
+                                <div class="page-item">
+                                    <img src="{{.ImageURL}}" alt="Страница {{.PageNumber}}" class="page-image">
+                                    <div class="page-number">Страница {{.PageNumber}}</div>
+                                </div>
                             {{end}}
+                        {{else}}
+                            <div class="loading">Нет страниц для отображения</div>
+                        {{end}}
                         </div>
                     </div>
                 </div>

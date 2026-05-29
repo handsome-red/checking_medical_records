@@ -59,7 +59,7 @@ func main() {
 
 	// Инициализация хендлеров
 	testHandler := handlers.NewTestHandler(sessionService, bookService, templateManager)
-	authHandler := handlers.NewAuthHandler(userService, templateManager)
+	authHandler := handlers.NewAuthHandler(authService, userService, templateManager)
 	bookHandler := handlers.NewBookHandler(bookService, templateManager)
 	registerHandler := handlers.NewRegistrationHandler(userService, sessionService, bookService, templateManager)
 	profileHandler := handlers.NewProfileHandler(userService, sessionService, bookService, templateManager)
@@ -75,11 +75,13 @@ func main() {
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 
 	// Публичные маршруты
-	r.Get("/", testHandler.ShowTest)
+	r.Get("/", testHandler.ShowStartPage)
 	r.Get("/login", authHandler.ShowLoginPage)
-	r.Get("/register", registerHandler.ShowRegistrationForm)
-	r.Post("/register", registerHandler.Register)
 	r.Post("/login", authHandler.Login)
+	r.Route("/api", func(r chi.Router) {
+		r.Get("/registration", registerHandler.ShowRegistrationForm)
+		r.Post("/registration", registerHandler.Register)
+	})
 
 	// Защищённые маршруты
 	r.Group(func(r chi.Router) {
@@ -103,6 +105,9 @@ func main() {
 			r.Get("/{id}", bookHandler.GetBookByID)
 			r.Get("/{id}/start", testHandler.StartTest)
 		})
+
+		r.Get("/statistics", profileHandler.Statistics)
+
 	})
 
 	log.Println("🚀 Сервер запущен на http://localhost:8080")

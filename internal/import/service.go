@@ -79,7 +79,25 @@ func (s *ImportService) importBook(importBook model.ImportBook) error {
 	}
 	fmt.Printf("  📚 Создана книга (ID: %s)\n", bookID)
 
-	// 2. Импортируем вопросы
+	// 2. Добавляем страницы (если есть)
+	if len(importBook.Pages) > 0 {
+		for _, importPage := range importBook.Pages {
+			page := &model.BookPage{
+				ID:         uuid.New(),
+				BookID:     bookID,
+				PageNumber: importPage.Number,
+				ImagePath:  importPage.Path,
+				ImageURL:   importPage.Path,
+			}
+			if err := tx.Create(page).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("ошибка создания страницы: %w", err)
+			}
+		}
+		fmt.Printf("  📸 Добавлено страниц: %d\n", len(importBook.Pages))
+	}
+
+	// 3. Импортируем вопросы
 	questionCount := 0
 	optionCount := 0
 
@@ -101,7 +119,7 @@ func (s *ImportService) importBook(importBook model.ImportBook) error {
 		}
 		questionCount++
 
-		// 3. Создаём варианты ответов
+		// 4. Создаём варианты ответов
 		for optIdx, importOpt := range importQ.Options {
 			optionID := uuid.New()
 			option := &model.Option{

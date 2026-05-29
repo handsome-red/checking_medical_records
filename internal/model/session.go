@@ -166,11 +166,6 @@ func (s *Session) ScoreProgress() float64 {
 	return float64(s.Score) / float64(s.MaxScore) * 100
 }
 
-// IsPassed проверяет, пройден ли тест (порог 70%)
-func (s *Session) IsPassed() bool {
-	return s.ScoreProgress() >= 70.0
-}
-
 // Duration возвращает длительность сессии
 func (s *Session) Duration() time.Duration {
 	end := time.Now()

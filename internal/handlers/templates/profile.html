@@ -4,91 +4,72 @@
     <meta charset="UTF-8">
     <title>Мой профиль</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.5;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <!-- Шапка профиля -->
-        <div class="profile-header">
-            <h1>{{.FirstName}}</h1>
-            <h1>{{.LastName}}</h1>
-            <h1>{{.Patronymic}}</h1>
-            <p>Всего пройдено тестов: {{.TotalSessions}}</p>
-        </div>
 
-        <!-- Статистика -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <!-- <div class="stat-number">{{.TotalSessions}}</div> -->
-                <div class="stat-label">Пройдено тестов</div>
-            </div>
-            <div class="stat-card">
-                <!-- <div class="stat-number">{{.AvgScore}}%</div> -->
-                <div class="stat-label">Средний результат</div>
-            </div>
-            <div class="stat-card">
-                <!-- <div class="stat-number">{{.BestScore}}%</div> -->
-                <div class="stat-label">Лучший результат</div>
-            </div>
-        </div>
-
-        <!-- Таблица сессий -->
-        <h2 style="margin-bottom: 15px;">📋 История тестов</h2>
+        <h1>Добро пожаловать в систему тестирования медицинских книжек</h1>
         
-        <!-- {{if .Sessions}}
-        <div class="sessions-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>№</th>
-                        <th>Книга</th>
-                        <th>Результат</th>
-                        <th>Дата</th>
-                        <th>Время</th>
-                        <th>Статус</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{range $index, $session := .Sessions}}
-                    <tr>
-                        <td>{{$index}}</td>
-                        <td>{{$session.BookName}}</td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span>{{$session.Correct}}/{{$session.Total}}</span>
-                                <div class="progress-bar-mini">
-                                    <div class="progress-fill-mini" style="width: {{$session.Percentage}}%"></div>
-                                </div>
-                                <span>{{printf "%.0f" $session.Percentage}}%</span>
-                            </div>
-                        </td>
-                        <td>{{$session.Date}}</td>
-                        <td>{{$session.Duration}}</td>
-                        <td>
-                            {{if $session.Completed}}
-                                <span class="status-badge status-completed">✅ Завершён</span>
-                            {{else}}
-                                <span class="status-badge status-progress">🔄 В процессе</span>
-                            {{end}}
-                        </td>
-                        <td>
-                            <a href="/profile/session/{{$session.SessionID}}" class="btn-link">Подробнее</a>
-                        </td>
-                    </tr>
-                    {{end}}
-                </tbody>
-            </table>
-        </div>
-        {{else}}
-        <div class="empty-state">
-            <p>📭 У вас пока нет пройденных тестов</p>
-            <a href="/register" class="btn">Начать тест</a>
-        </div>
-        {{end}} -->
+        <p><strong>{{.FirstName}} {{.LastName}} {{.Patronymic}}</strong></p>
         
-        <div style="margin-top: 30px; text-align: center;">
-            <a href="/" class="btn">🏠 На главную</a>
-        </div>
+        <h2>Тесты</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Название книги</th>
+                    <th>Правильные ответы</th>
+                    <th>Всего вопросов</th>
+                    <th>Процент</th>
+                    <th>Попытки</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .ProfileBooks}}
+                <tr>
+                    <td>{{.BookName}}</td>
+                    <td>{{.BestScore}}</td>
+                    <td>{{.MaxScore}}</td>
+                    <td>{{printf "%.1f" .Percent}}%</td>
+                    <td>{{.AttemptsCount}}</td>
+                    <td>
+                        <a href="/books/{{.BookID}}/start" class="btn">Пройти тест</a>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
     </div>
+    
 </body>
 </html>

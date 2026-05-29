@@ -47,45 +47,60 @@ func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Получаем все сессии пользователя
-	sessions, err := h.sessionService.GetUserSessions(r.Context(), userID)
+	stats, err := h.sessionService.GetUserBooksStats(r.Context(), userID)
 	if err != nil {
-		http.Error(w, "Failed to get sessions", http.StatusInternalServerError)
+		http.Error(w, "Failed to get stats", http.StatusInternalServerError)
 		return
 	}
 
 	// Получаем статистику по книгам
-	profileBooks := make([]ProfileBook, 0)
-	for _, session := range sessions {
-		if !session.IsCompleted() {
-			continue
-		}
-		
-		book, err := h.bookService.GetBookByID(r.Context(), session.BookID)
-		if err != nil {
-			continue
-		}
-
-		percent := float64(session.Score) / float64(session.MaxScore) * 100
-		
+	profileBooks := make([]ProfileBook, 0, len(stats))
+	for _, stat := range stats {
 		profileBooks = append(profileBooks, ProfileBook{
-			BookID:        book.ID,
-			BookName:      book.Title,
-			BestScore:     session.Score,
-			MaxScore:      session.MaxScore,
-			Percent:       percent,
-			AttemptsCount: 1,
+			BookID:        stat.BookID,
+			BookName:      stat.BookName,
+			BestScore:     stat.BestScore,
+			MaxScore:      stat.MaxScore,
+			Percent:       stat.Percent,
+			AttemptsCount: stat.AttemptsCount,
 		})
 	}
 
 	data := map[string]any{
-		"first_name":    user.FirstName,
-		"last_name":     user.LastName,
-		"patronymic":    user.Patronymic,
-		"profile_books": profileBooks,
+		"FirstName":    user.FirstName,
+		"LastName":     user.LastName,
+		"Patronymic":   user.Patronymic,
+		"ProfileBooks": profileBooks,
 	}
 
 	h.template.ExecuteTemplate(w, "profile.html", data)
+}
+
+// GetUserProfile возвращает профиль пользователя
+func (h *ProfileHandler) Statistics(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	// Получаем пользователя
+	user, err := h.userService.GetUserByID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	if !user.IsAdmin() {
+		http.Error(w, "User is not admin", http.StatusNotFound)
+		return
+	}
+
+	data := map[string]any{
+		"user": 
+	}
+
+	h.template.ExecuteTemplate(w, "statistics.html", data)
 }
 
 type ProfileBook struct {

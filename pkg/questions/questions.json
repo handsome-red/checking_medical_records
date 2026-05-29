@@ -4,6 +4,23 @@
         "id": 1,
         "name": "Медицинская книжка - Образец 1 (правильная)",
         "book_path": "/uploads/sample_1",
+        "pages": [
+                {"number": 1, "path": "/uploads/sample_1/pdf_page-0001.jpg"},
+                {"number": 2, "path": "/uploads/sample_1/pdf_page-0002.jpg"},
+                {"number": 3, "path": "/uploads/sample_1/pdf_page-0003.jpg"},
+                {"number": 4, "path": "/uploads/sample_1/pdf_page-0004.jpg"},
+                {"number": 5, "path": "/uploads/sample_1/pdf_page-0005.jpg"},
+                {"number": 6, "path": "/uploads/sample_1/pdf_page-0006.jpg"},
+                {"number": 7, "path": "/uploads/sample_1/pdf_page-0007.jpg"},
+                {"number": 8, "path": "/uploads/sample_1/pdf_page-0008.jpg"},
+                {"number": 9, "path": "/uploads/sample_1/pdf_page-0009.jpg"},
+                {"number": 10, "path": "/uploads/sample_1/pdf_page-0010.jpg"},
+                {"number": 11, "path": "/uploads/sample_1/pdf_page-0011.jpg"},
+                {"number": 12, "path": "/uploads/sample_1/pdf_page-0012.jpg"},
+                {"number": 13, "path": "/uploads/sample_1/pdf_page-0013.jpg"},
+                {"number": 14, "path": "/uploads/sample_1/pdf_page-0014.jpg"},
+                {"number": 15, "path": "/uploads/sample_1/pdf_page-0015.jpg"}
+            ],
         "questions": [
                 {
                     "id": 1,
@@ -27,7 +44,7 @@
                         {"text": "верно все", "correct": false}
                     ]
                 },
-                {
+                {   
                     "id": 3,
                     "text": "Какое несоответствие в оформлении представленной медицинской книжки указывает на подделку бланка (стр.2)?",
                     "options": [
@@ -181,6 +198,22 @@
         "id": 2,
         "name": "Медицинская книжка - Образец 2 (подделка)",
         "book_path": "/uploads/sample_2",
+        "pages": [
+                {"number": 1, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0001.jpg"},
+                {"number": 2, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0002.jpg"},
+                {"number": 3, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0003.jpg"},
+                {"number": 4, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0004.jpg"},
+                {"number": 5, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0005.jpg"},
+                {"number": 6, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0006.jpg"},
+                {"number": 7, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0007.jpg"},
+                {"number": 8, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0008.jpg"},
+                {"number": 9, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0009.jpg"},
+                {"number": 10, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0010.jpg"},
+                {"number": 11, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0011.jpg"},
+                {"number": 12, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0012.jpg"},
+                {"number": 13, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0013.jpg"},
+                {"number": 14, "path": "/uploads/sample_2/СКАН ЛМК подделка_page-0014.jpg"}
+            ],
         "questions": [
                 {
                     "id": 16,

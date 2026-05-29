@@ -4,10 +4,30 @@
     <meta charset="UTF-8">
     <title>Результаты теста</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        /* Временные стили для отладки */
+        .register-link {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+        }
+        .register-link a {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #667eea;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .register-link a:hover {
+            background-color: #5a67d8;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-
         <h1>Результаты теста</h1>
         
         <div>
@@ -17,54 +37,9 @@
         
         <hr>
         
-        <!-- <h2>Детальный разбор:</h2>
-        
-        {{range .results}}
-            <div class="question">
-                <h3>{{.QuestionText}}</h3>
-                
-                {{if .Image}}                
-                    <div class="image-container">
-                        <img src="{{.Image}}" alt="Иллюстрация">
-                    </div>
-                {{end}}
-
-                <div class="user-answer">
-                    <strong>Ваш ответ:</strong><br>
-                    {{if .UserAnswers}}
-                        <ul>
-                        {{range .UserAnswers}}
-                            <li>{{.}}</li>
-                        {{end}}
-                        </ul>
-                    {{else}}
-                        <span>Нет ответа</span>
-                    {{end}}
-                </div>
-                
-                <div class="correct-answer">
-                    <strong>Правильный ответ:</strong><br>
-                    <ul>
-                    {{range .CorrectAnswers}}
-                        <li>{{.}}</li>
-                    {{end}}
-                    </ul>
-                </div>
-                
-                <div>
-                    {{if .IsCorrect}}
-                        <span class="correct">Верно</span>
-                    {{else}}
-                        <span class="incorrect">Неверно</span>
-                    {{end}}
-                </div>
-            </div>
-            <hr>
-        {{end}} -->
-        
-        <br>
-        <a href="/">На главную</a>
-        <a href="/test/">Следующая медкнижка</a>
+        <div class="register-link">
+            <a href="/profile">В профиль</a>
+        </div>
     </div>
 </body>
 </html>
