@@ -1,0 +1,8 @@
+.env
+.git/
+.vscode/
+.env
+*.log
+tmp/
+bin/
+README.md

@@ -97,7 +97,7 @@ func (h *ProfileHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"user": 
+		"user": "ls",
 	}
 
 	h.template.ExecuteTemplate(w, "statistics.html", data)
