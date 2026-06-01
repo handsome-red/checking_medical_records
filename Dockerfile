@@ -19,6 +19,12 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
+ENV DB_HOST=amvera-egorovandrey-cnpg-medbookdb-rw
+ENV DB_PORT=5432
+ENV DB_USER=atlas
+ENV DB_PASSWORD=123
+ENV DB_NAME=med_book
+
 COPY --from=builder /app/server .
 COPY --from=builder /app/importer .
 COPY --from=builder /app/static ./static
