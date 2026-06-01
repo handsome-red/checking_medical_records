@@ -20,6 +20,10 @@ type SessionService struct {
 	answerRepo  *repository.AnswerRepository
 }
 
+func (s *SessionService) GetGlobalUsersStat() any {
+	panic("unimplemented")
+}
+
 func NewSessionService(
 	sessionRepo *repository.SessionRepository,
 	bookRepo *repository.BookRepository,

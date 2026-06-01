@@ -82,11 +82,17 @@
             
         </div>     
     </body>
-    
+        
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Таймер
+            // ОТЛАДКА: вывести полученное значение
+            console.log("expiresAt raw:", {{.expiresAt}});
+            console.log("expiresAt type:", typeof {{.expiresAt}});
+            
             const expiresAt = new Date({{.expiresAt}} * 1000);
+            console.log("expiresAt date:", expiresAt);
+            console.log("now:", new Date());
+            
             const timerElement = document.getElementById('timer');
             
             if (timerElement) {
@@ -94,15 +100,20 @@
                     const now = new Date();
                     const distance = expiresAt - now;
                     
+                    console.log("distance (ms):", distance);
+                    
                     if (distance <= 0) {
                         timerElement.innerHTML = "00:00";
+                        console.log("distance <= 0, showing 00:00");
                         return;
                     }
                     
                     const minutes = Math.floor(distance / 60000);
                     const seconds = Math.floor((distance % 60000) / 1000);
-                    timerElement.innerHTML = minutes.toString().padStart(2, '0') + ":" + 
-                                            seconds.toString().padStart(2, '0');
+                    const timeString = minutes.toString().padStart(2, '0') + ":" + 
+                                    seconds.toString().padStart(2, '0');
+                    console.log("time:", timeString);
+                    timerElement.innerHTML = timeString;
                 }
                 
                 updateTimer();

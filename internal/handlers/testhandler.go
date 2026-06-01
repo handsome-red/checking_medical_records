@@ -116,13 +116,23 @@ func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 		pages = []model.BookPage{}
 	}
 
+	fmt.Println("TIME: ")
+	fmt.Println(session.GetTimeRemaining().Seconds())
+
+	var expiresAtUnix int64
+	if session.ExpiresAt != nil {
+		expiresAtUnix = session.ExpiresAt.Unix()
+	} else {
+		expiresAtUnix = 0
+	}
+
 	data := map[string]any{
 		"question":       currentQuestion,
 		"pages":          pages,
 		"current":        len(answers) + 1,
 		"total":          totalQuestions,
 		"progress":       h.getProgress(len(answers), totalQuestions),
-		"expiresAt":      session.GetTimeRemaining().Seconds(),
+		"expiresAt":      expiresAtUnix,
 		"book_title":     book.Title,
 		"time_remaining": session.GetTimeRemainingFormatted(),
 		"question_index": len(answers) + 1,
@@ -138,8 +148,6 @@ func (h *TestHandler) ShowTest(w http.ResponseWriter, r *http.Request) {
 // internal/handlers/testhandler.go
 
 func (h *TestHandler) SubmitAnswer(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("=== SUBMIT HANDLER START ===")
-
 	session, err := h.getSession(r)
 	if err != nil {
 		fmt.Printf("❌ getSession error: %v\n", err)

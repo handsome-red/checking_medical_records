@@ -96,8 +96,10 @@ func (h *ProfileHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	statistics := h.sessionService.GetGlobalUsersStat()
+
 	data := map[string]any{
-		"user": "ls",
+		"statistics": statistics,
 	}
 
 	h.template.ExecuteTemplate(w, "statistics.html", data)
