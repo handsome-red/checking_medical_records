@@ -1,44 +1,40 @@
 # syntax=docker/dockerfile:1
 
-# ---- 1. Стадия сборки (builder) ----
-# Здесь мы компилируем наше Go-приложение
 FROM golang:1.23-alpine AS builder
 
-# Указываем рабочую директорию внутри контейнера
 WORKDIR /app
 
-# Копируем файлы с зависимостями
 COPY go.mod go.sum ./
-# Скачиваем их
 RUN go mod download
 
-# Копируем весь остальной код проекта
 COPY . .
 
+# Компилируем и сервер, и импортер
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o importer ./cmd/import
 
-# ---- 2. Финальная стадия (runner) ----
-# Создаем минимальный образ, в котором будет только наш скомпилированный бинарник
 FROM alpine:latest
 
-# Устанавливаем CA-сертификаты (нужны, если твой сайт ходит по HTTPS к другим сервисам)
 RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
-# Копируем скомпилированный бинарник из стадии "builder"
 COPY --from=builder /app/server .
-
-COPY --from=builder /app/internal/handlers/templates ./internal/handlers/templates
-
+COPY --from=builder /app/importer .
 COPY --from=builder /app/static ./static
+COPY --from=builder /app/internal/handlers/templates ./internal/handlers/templates
+COPY --from=builder /app/pkg/questions ./data
 
-COPY --from=builder /app/uploads ./uploads
+# Создаем entrypoint скрипт, который:
+# 1. Импортирует данные (если файл есть)
+# 2. Запускает сервер
+RUN echo '#!/bin/sh' > entrypoint.sh && \
+    echo 'echo "📥 Running data import..."' >> entrypoint.sh && \
+    echo './importer -dsn "host=$DB_HOST user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME port=$DB_PORT sslmode=disable" -file ./data/questions.json -skip true' >> entrypoint.sh && \
+    echo 'echo "🚀 Starting server..."' >> entrypoint.sh && \
+    echo 'exec ./server' >> entrypoint.sh && \
+    chmod +x entrypoint.sh
 
-COPY --from=builder /app/pkg ./pkg
-
-# Сообщаем Docker, что приложение будет слушать порт 8080 (или тот, который используешь ты)
 EXPOSE 8080
 
-# Команда для запуска сервера
-CMD ["./server"]
+ENTRYPOINT ["./entrypoint.sh"]
