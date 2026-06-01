@@ -19,21 +19,20 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
-ENV DB_HOST=amvera-egorovandrey-cnpg-medbookdb-rw
-ENV DB_PORT=5432
-ENV DB_USER=atlas
-ENV DB_PASSWORD=123
-ENV DB_NAME=med_book
-
 COPY --from=builder /app/server .
 COPY --from=builder /app/importer .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/internal/handlers/templates ./internal/handlers/templates
 COPY --from=builder /app/pkg/questions ./data
 
-# Создаем entrypoint скрипт, который:
-# 1. Импортирует данные (если файл есть)
-# 2. Запускает сервер
+# Добавляем переменные окружения ПРЯМО ЗДЕСЬ
+ENV DB_HOST=amvera-egorovandrey-cnpg-medbookdb-rw
+ENV DB_PORT=5432
+ENV DB_USER=atlas
+ENV DB_PASSWORD=123
+ENV DB_NAME=med_book
+
+# Создаем entrypoint скрипт
 RUN echo '#!/bin/sh' > entrypoint.sh && \
     echo 'echo "📥 Running data import..."' >> entrypoint.sh && \
     echo './importer -dsn "host=$DB_HOST user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME port=$DB_PORT sslmode=disable" -file ./data/questions.json -skip true' >> entrypoint.sh && \
