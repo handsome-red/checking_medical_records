@@ -24,6 +24,7 @@ COPY --from=builder /app/importer .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/internal/handlers/templates ./internal/handlers/templates
 COPY --from=builder /app/pkg/questions ./data
+COPY --from=builder /app/uploads ./uploads
 
 # Добавляем переменные окружения ПРЯМО ЗДЕСЬ
 ENV DB_HOST=amvera-egorovandrey-cnpg-medbookdb-rw
