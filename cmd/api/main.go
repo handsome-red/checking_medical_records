@@ -9,6 +9,7 @@ import (
 	"med_book/internal/database"
 	"med_book/internal/handlers"
 	"med_book/internal/middleware"
+	"med_book/internal/quiz"
 	"med_book/internal/repository"
 	"med_book/internal/service"
 	"med_book/internal/templates"
@@ -73,6 +74,16 @@ func main() {
 	// Статические файлы
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+
+	// ========== QUIZ ==========
+
+	quizModule, err := quiz.NewQuizModule(cfg)
+	if err != nil {
+		log.Fatalf("Failed to init quiz module: %v", err)
+	}
+
+	// Регистрация маршрутов квиза
+	quizModule.RegisterRoutes(r)
 
 	// Публичные маршруты
 	r.Get("/", testHandler.ShowStartPage)
