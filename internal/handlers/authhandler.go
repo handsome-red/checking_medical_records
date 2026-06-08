@@ -10,17 +10,20 @@ import (
 type AuthHandler struct {
 	authService *service.AuthService
 	userService *service.UserService
+	adminEmail  string
 	templates   *templates.TemplatesManager
 }
 
 func NewAuthHandler(
 	authService *service.AuthService,
 	userService *service.UserService,
+	adminEmail string,
 	templates *templates.TemplatesManager,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 		userService: userService,
+		adminEmail:  adminEmail,
 		templates:   templates,
 	}
 }
@@ -58,6 +61,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.adminEmail != "" && email == h.adminEmail {
+		_ = h.userService.PromoteToAdmin(r.Context(), email)
+	}
+
 	token, err := h.authService.GenerateToken(user.ID)
 	if err != nil {
 		data := map[string]interface{}{
@@ -70,12 +77,30 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Name:     "auth_token",
 		Value:    token,
 		Path:     "/",
-		HttpOnly: true,                    // Защита от XSS
-		Secure:   false,                   // Для разработки false, для прода true
-		SameSite: http.SameSiteStrictMode, // Защита от CSRF
-		MaxAge:   24 * 60 * 60,            // 24 часа
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   24 * 60 * 60,
 	})
 	http.Redirect(w, r, "/profile", http.StatusSeeOther)
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (h *AuthHandler) ShowRegisterPage(w http.ResponseWriter, r *http.Request) {

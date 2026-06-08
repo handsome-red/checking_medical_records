@@ -9,7 +9,6 @@ RUN go mod download
 
 COPY . .
 
-# Компилируем и сервер, и импортер
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -o importer ./cmd/import
 
@@ -23,24 +22,24 @@ COPY --from=builder /app/server .
 COPY --from=builder /app/importer .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/internal/handlers/templates ./internal/handlers/templates
-COPY --from=builder /app/pkg/questions ./data
+COPY --from=builder /app/pkg/questions ./pkg/questions
 COPY --from=builder /app/uploads ./uploads
 
-# Добавляем переменные окружения ПРЯМО ЗДЕСЬ
-ENV DB_HOST=amvera-egorovandrey-cnpg-medbookdb-rw
-ENV DB_PORT=5432
-ENV DB_USER=atlas
-ENV DB_PASSWORD=123
-ENV DB_NAME=med_book
+ENV DB_DRIVER=sqlite
+ENV DB_DSN=/data/med_book.db?_journal_mode=WAL&_foreign_keys=1
+ENV JWT_SECRET=change-me-in-production
+ENV SERVER_PORT=8080
 
-# Создаем entrypoint скрипт
-RUN echo '#!/bin/sh' > entrypoint.sh && \
-    echo 'echo "📥 Running data import..."' >> entrypoint.sh && \
-    echo './importer -dsn "host=$DB_HOST user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME port=$DB_PORT sslmode=disable" -file ./data/questions.json -skip true' >> entrypoint.sh && \
-    echo 'echo "🚀 Starting server..."' >> entrypoint.sh && \
+RUN mkdir -p /data && \
+    echo '#!/bin/sh' > entrypoint.sh && \
+    echo 'echo "Running data import..."' >> entrypoint.sh && \
+    echo './importer -dsn "/data/med_book.db?_journal_mode=WAL&_foreign_keys=1" -file ./pkg/questions/questions.json -skip true' >> entrypoint.sh && \
+    echo 'echo "Starting server..."' >> entrypoint.sh && \
     echo 'exec ./server' >> entrypoint.sh && \
     chmod +x entrypoint.sh
 
 EXPOSE 8080
+
+VOLUME ["/data"]
 
 ENTRYPOINT ["./entrypoint.sh"]

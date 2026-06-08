@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        .filters { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+        .filters select, .filters button { padding: 8px 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #f2f2f2; }
+        .answers { max-width: 420px; white-space: normal; }
+        .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Админ-панель — результаты тестирования</h1>
+
+    <div class="toolbar">
+        <a href="/profile">← Профиль</a>
+        <a href="{{.ExportURL}}" class="btn">Скачать Excel</a>
+    </div>
+
+    <form method="GET" action="/admin" class="filters">
+        <label>
+            Сотрудник:
+            <select name="user_id">
+                <option value="">Все</option>
+                {{range .Users}}
+                <option value="{{printf "%s" .ID}}" {{if eq $.SelectedUserID (printf "%s" .ID)}}selected{{end}}>
+                    {{.LastName}} {{.FirstName}} {{.Patronymic}}
+                </option>
+                {{end}}
+            </select>
+        </label>
+        <label>
+            Книга:
+            <select name="book_id">
+                <option value="">Все</option>
+                {{range .Books}}
+                <option value="{{printf "%s" .ID}}" {{if eq $.SelectedBookID (printf "%s" .ID)}}selected{{end}}>{{.Title}}</option>
+                {{end}}
+            </select>
+        </label>
+        <button type="submit">Применить фильтр</button>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ФИО</th>
+                <th>Дата</th>
+                <th>Начало</th>
+                <th>Окончание</th>
+                <th>Тест</th>
+                <th>Результат</th>
+                <th>Ответы</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Reports}}
+            <tr>
+                <td>{{.FIO}}</td>
+                <td>{{.Date}}</td>
+                <td>{{.StartTime}}</td>
+                <td>{{.EndTime}}</td>
+                <td>{{.BookTitle}}</td>
+                <td>{{.Score}}/{{.MaxScore}}</td>
+                <td class="answers">
+                    {{range .AnswerTexts}}
+                        <div>{{.}}</div>
+                    {{else}}
+                        —
+                    {{end}}
+                </td>
+            </tr>
+            {{else}}
+            <tr><td colspan="7">Нет данных по выбранным фильтрам</td></tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

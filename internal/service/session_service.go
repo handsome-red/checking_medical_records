@@ -3,8 +3,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"math/rand"
 	"time"
 
 	"med_book/internal/model"
@@ -20,10 +23,6 @@ type SessionService struct {
 	answerRepo  *repository.AnswerRepository
 }
 
-func (s *SessionService) GetGlobalUsersStat() any {
-	panic("unimplemented")
-}
-
 func NewSessionService(
 	sessionRepo *repository.SessionRepository,
 	bookRepo *repository.BookRepository,
@@ -36,32 +35,49 @@ func NewSessionService(
 	}
 }
 
-// ========== СОЗДАНИЕ СЕССИИ ==========
-
 // StartTest начинает новый тест с конкретной книгой
 func (s *SessionService) StartTest(ctx context.Context, userID, bookID uuid.UUID, duration time.Duration) (*model.Session, error) {
-	// 1. Проверяем, нет ли незавершённой сессии
 	unfinished, err := s.sessionRepo.FindUnfinishedByUserID(ctx, userID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil {
 		return nil, fmt.Errorf("failed to check unfinished session: %w", err)
 	}
 	if unfinished != nil {
 		return nil, errors.New("you have an unfinished session")
 	}
 
-	// 2. Получаем максимальный балл за книгу
 	maxScore, err := s.bookRepo.GetMaxScore(ctx, bookID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get max score: %w", err)
 	}
 
-	// 3. Создаём сессию
+	questions, err := s.bookRepo.GetQuestionsWithOptions(ctx, bookID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load questions: %w", err)
+	}
+	if len(questions) == 0 {
+		return nil, errors.New("book has no questions")
+	}
+
+	order := make([]uuid.UUID, len(questions))
+	for i, q := range questions {
+		order[i] = q.ID
+	}
+	rand.Shuffle(len(order), func(i, j int) {
+		order[i], order[j] = order[j], order[i]
+	})
+
+	orderJSON, err := json.Marshal(order)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode question order: %w", err)
+	}
+
 	var session *model.Session
 	if duration > 0 {
 		session = model.NewSession(userID, bookID, duration, maxScore)
 	} else {
 		session = model.NewUnlimitedSession(userID, bookID, maxScore)
 	}
+	session.QuestionOrder = string(orderJSON)
 
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -70,66 +86,59 @@ func (s *SessionService) StartTest(ctx context.Context, userID, bookID uuid.UUID
 	return session, nil
 }
 
-// ========== ПОЛУЧЕНИЕ ДАННЫХ ==========
-
-// GetSessionByID возвращает сессию по ID
 func (s *SessionService) GetSessionByID(ctx context.Context, sessionID uuid.UUID) (*model.Session, error) {
 	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Проверяем истечение времени
-	if session.IsExpired() {
+	if session.IsExpired() && session.IsInProgress() {
 		if err := session.Expire(); err == nil {
-			s.sessionRepo.Update(ctx, session)
+			_ = s.recalculateSessionScore(ctx, session)
+			_ = s.sessionRepo.Update(ctx, session)
 		}
 	}
 
 	return session, nil
 }
 
-// GetUserSessions возвращает все сессии пользователя
 func (s *SessionService) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]*model.Session, error) {
 	return s.sessionRepo.FindByUserID(ctx, userID)
 }
 
-// GetCurrentQuestion возвращает текущий неотвеченный вопрос
 func (s *SessionService) GetCurrentQuestion(ctx context.Context, sessionID uuid.UUID) (*model.Question, error) {
-	// 1. Получаем сессию
 	session, err := s.GetSessionByID(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. Проверяем статус
-	if session.IsCompleted() {
+	if session.IsCompleted() || session.Status == model.SessionStatusExpired {
 		return nil, errors.New("session already completed")
 	}
 	if session.IsExpired() {
 		return nil, errors.New("session expired")
 	}
 
-	// 3. Получаем已回答 вопросы
 	answeredQuestions, err := s.answerRepo.GetAnsweredQuestionIDs(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. Получаем все вопросы книги
-	questions, err := s.bookRepo.GetQuestionsWithOptions(ctx, session.BookID)
+	order, err := s.parseQuestionOrder(session)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. Находим первый неотвеченный вопрос
-	for _, q := range questions {
-		if !containsUUID(answeredQuestions, q.ID) {
-			return &q, nil
+	for _, questionID := range order {
+		if !containsUUID(answeredQuestions, questionID) {
+			question, err := s.bookRepo.GetQuestionByID(ctx, questionID)
+			if err != nil {
+				return nil, err
+			}
+			return question, nil
 		}
 	}
 
-	// Все вопросы已回答 - завершаем сессию
 	if err := s.CompleteSession(ctx, sessionID); err != nil {
 		return nil, err
 	}
@@ -137,7 +146,6 @@ func (s *SessionService) GetCurrentQuestion(ctx context.Context, sessionID uuid.
 	return nil, errors.New("all questions answered")
 }
 
-// GetAnswersBySession возвращает все ответы пользователя
 func (s *SessionService) GetAnswersBySession(ctx context.Context, sessionID uuid.UUID) ([]model.UserAnswer, error) {
 	return s.answerRepo.FindBySessionID(ctx, sessionID)
 }
@@ -146,124 +154,77 @@ func (s *SessionService) GetUserBooksStats(ctx context.Context, userID uuid.UUID
 	return s.sessionRepo.GetUserBooksStats(ctx, userID)
 }
 
-// ========== ОТВЕТЫ ==========
+// SubmitQuestionAnswer сохраняет все выбранные варианты для одного вопроса
+func (s *SessionService) SubmitQuestionAnswer(
+    ctx context.Context,
+    sessionID uuid.UUID,
+    questionID uuid.UUID,
+    optionIDs []uuid.UUID,
+) error {
+    log.Printf("SubmitQuestionAnswer START at %v", time.Now())
+    
+    // Замеряем каждый шаг
+    startTime := time.Now()
+    stepStart := time.Now()
+    
+    tx, err := s.sessionRepo.Begin(ctx)
+    if err != nil {
+        return err
+    }
+    log.Printf("  [1] Begin tx: %v", time.Since(stepStart))
+    defer tx.Rollback()
 
-// SubmitAnswer сохраняет ответ и обновляет счёт
-func (s *SessionService) SubmitAnswer(ctx context.Context, sessionID uuid.UUID, questionID, optionID uuid.UUID) error {
-	// Начинаем транзакцию
-	fmt.Println("SubmitAnswer")
-	fmt.Printf("   sessionID: %v\n", sessionID)
-	fmt.Printf("   questionID: %v\n", questionID)
-	fmt.Printf("   optionID: %v\n", optionID)
+    stepStart = time.Now()
+    session, err := tx.FindByID(sessionID)
+    if err != nil {
+        return err
+    }
+    log.Printf("  [2] FindByID: %v", time.Since(stepStart))
 
-	tx, err := s.sessionRepo.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+    if session == nil {
+        return errors.New("session not found")
+    }
 
-	// 1. Получаем сессию
-	session, err := tx.FindByID(sessionID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
+    stepStart = time.Now()
+    // Сохраняем ответы
+    now := time.Now()
+    for i, optionID := range optionIDs {
+        answer := &model.UserAnswer{
+            SessionID:  sessionID,
+            QuestionID: questionID,
+            OptionID:   optionID,
+            AnsweredAt: now,
+        }
+        if err := tx.CreateAnswer(answer); err != nil {
+            return err
+        }
+        log.Printf("  [3.%d] Save answer: %v", i, time.Since(stepStart))
+    }
 
-	// 2. Проверяем статус
-	if session.IsCompleted() {
-		tx.Rollback()
-		return errors.New("session already completed")
-	}
-	if session.IsExpired() {
-		tx.Rollback()
-		return errors.New("session expired")
-	}
+    stepStart = time.Now()
+    answeredCount, err := tx.CountAnsweredQuestions(sessionID)
+    if err != nil {
+        return err
+    }
+    log.Printf("  [4] CountAnsweredQuestions: %v (count=%d)", time.Since(stepStart), answeredCount)
 
-	// 3. Проверяем, не отвечал ли уже на этот вопрос
-	alreadyAnswered, err := s.answerRepo.ExistsBySessionAndQuestion(ctx, sessionID, questionID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	if alreadyAnswered {
-		tx.Rollback()
-		return errors.New("question already answered")
-	}
+    stepStart = time.Now()
+    session.AnsweredCount = answeredCount
+    if err := tx.Update(session); err != nil {
+        return err
+    }
+    log.Printf("  [5] Update session: %v", time.Since(stepStart))
 
-	// 4. Получаем вариант ответа
-	option, err := s.bookRepo.GetOptionByID(ctx, optionID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
+    stepStart = time.Now()
+    if err := tx.Commit(); err != nil {
+        return err
+    }
+    log.Printf("  [6] Commit: %v", time.Since(stepStart))
 
-	// 5. Создаём ответ
-	answer := &model.UserAnswer{
-		SessionID:  sessionID,
-		QuestionID: questionID,
-		OptionID:   optionID,
-		IsCorrect:  option.IsCorrect,
-		AnsweredAt: time.Now(),
-	}
-
-	if option.IsCorrect {
-		question, _ := s.bookRepo.GetQuestionByID(ctx, questionID)
-		if question != nil {
-			answer.Points = question.Points
-		}
-	}
-
-	if err := tx.CreateAnswer(answer); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// 6. Обновляем счёт сессии
-	if option.IsCorrect {
-		if err := session.AddPoints(answer.Points); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Update(session); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	// 7. Проверяем, все ли вопросы已回答
-	answeredCount, err := tx.CountAnswers(sessionID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	totalQuestions, err := s.bookRepo.CountQuestions(ctx, session.BookID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if answeredCount >= totalQuestions {
-		if err := session.Complete(); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := tx.Update(session); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit()
+    log.Printf("SubmitQuestionAnswer END - TOTAL: %v", time.Since(startTime))
+    return nil
 }
 
-// ========== ЗАВЕРШЕНИЕ СЕССИИ ==========
-
-// CompleteSession завершает сессию
 func (s *SessionService) CompleteSession(ctx context.Context, sessionID uuid.UUID) error {
 	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -274,10 +235,34 @@ func (s *SessionService) CompleteSession(ctx context.Context, sessionID uuid.UUI
 		return err
 	}
 
+	if err := s.recalculateSessionScore(ctx, session); err != nil {
+		return err
+	}
+
 	return s.sessionRepo.Update(ctx, session)
 }
 
-// AbandonSession бросает сессию
+func (s *SessionService) ExpireSession(ctx context.Context, sessionID uuid.UUID) error {
+	session, err := s.sessionRepo.FindByID(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+
+	if session.IsCompleted() || session.Status == model.SessionStatusExpired {
+		return nil
+	}
+
+	if err := session.Expire(); err != nil {
+		return err
+	}
+
+	if err := s.recalculateSessionScore(ctx, session); err != nil {
+		return err
+	}
+
+	return s.sessionRepo.Update(ctx, session)
+}
+
 func (s *SessionService) AbandonSession(ctx context.Context, sessionID uuid.UUID) error {
 	session, err := s.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -291,9 +276,6 @@ func (s *SessionService) AbandonSession(ctx context.Context, sessionID uuid.UUID
 	return s.sessionRepo.Update(ctx, session)
 }
 
-// ========== ЛИМИТЫ ==========
-
-// HasUnfinishedSession проверяет, есть ли у пользователя незавершённая сессия
 func (s *SessionService) HasUnfinishedSession(ctx context.Context, userID uuid.UUID) (bool, *model.Session, error) {
 	session, err := s.sessionRepo.FindUnfinishedByUserID(ctx, userID)
 	if err != nil {
@@ -305,12 +287,89 @@ func (s *SessionService) HasUnfinishedSession(ctx context.Context, userID uuid.U
 	return session != nil, session, nil
 }
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+func (s *SessionService) GetAdminReports(ctx context.Context, userID, bookID *uuid.UUID) ([]repository.AdminSessionReport, error) {
+	return s.sessionRepo.GetAdminReports(ctx, userID, bookID)
+}
 
-func isSameDay(t1, t2 time.Time) bool {
-	y1, m1, d1 := t1.Date()
-	y2, m2, d2 := t2.Date()
-	return y1 == y2 && m1 == m2 && d1 == d2
+func (s *SessionService) parseQuestionOrder(session *model.Session) ([]uuid.UUID, error) {
+	if session.QuestionOrder != "" {
+		var order []uuid.UUID
+		if err := json.Unmarshal([]byte(session.QuestionOrder), &order); err == nil && len(order) > 0 {
+			return order, nil
+		}
+	}
+
+	questions, err := s.bookRepo.GetQuestionsWithOptions(context.Background(), session.BookID)
+	if err != nil {
+		return nil, err
+	}
+
+	order := make([]uuid.UUID, len(questions))
+	for i, q := range questions {
+		order[i] = q.ID
+	}
+	return order, nil
+}
+
+func (s *SessionService) recalculateSessionScore(ctx context.Context, session *model.Session) error {
+	answers, err := s.answerRepo.FindBySessionID(ctx, session.ID)
+	if err != nil {
+		return err
+	}
+
+	questions, err := s.bookRepo.GetQuestionsWithOptions(ctx, session.BookID)
+	if err != nil {
+		return err
+	}
+
+	answersByQuestion := groupAnswersByQuestion(answers)
+	correctCount := 0
+
+	for _, question := range questions {
+		selected := make(map[uuid.UUID]model.Option)
+		for _, ua := range answersByQuestion[question.ID] {
+			for _, opt := range question.Options {
+				if opt.ID == ua.OptionID {
+					selected[opt.ID] = opt
+				}
+			}
+		}
+		if isQuestionFullyCorrect(&question, selected) {
+			correctCount++
+		}
+	}
+
+	session.Score = correctCount
+	return nil
+}
+
+func isQuestionFullyCorrect(question *model.Question, selected map[uuid.UUID]model.Option) bool {
+	correctCount := 0
+	for _, opt := range question.Options {
+		if opt.IsCorrect {
+			correctCount++
+		}
+	}
+
+	if len(selected) != correctCount {
+		return false
+	}
+
+	for _, opt := range selected {
+		if !opt.IsCorrect {
+			return false
+		}
+	}
+
+	return correctCount > 0 || len(selected) == 0
+}
+
+func groupAnswersByQuestion(answers []model.UserAnswer) map[uuid.UUID][]model.UserAnswer {
+	result := make(map[uuid.UUID][]model.UserAnswer)
+	for _, answer := range answers {
+		result[answer.QuestionID] = append(result[answer.QuestionID], answer)
+	}
+	return result
 }
 
 func containsUUID(ids []uuid.UUID, id uuid.UUID) bool {

@@ -10,27 +10,33 @@ import (
 )
 
 type Session struct {
-	ID     uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID uuid.UUID `gorm:"type:uuid;not null;index:idx_user_status,priority:1"`
-	BookID uuid.UUID `gorm:"type:uuid;not null;index"`
+    ID     uuid.UUID `gorm:"type:text;primaryKey"`
+    UserID uuid.UUID `gorm:"type:text;not null;index:idx_user_status,priority:1"`
+    BookID uuid.UUID `gorm:"type:text;not null;index"`
 
-	StartedAt        time.Time  `gorm:"default:now();index"`
-	CompletedAt      *time.Time `gorm:"index"`
-	ExpiresAt        *time.Time `gorm:"index"`
-	TimeLimitMinutes int        `gorm:"default:0"`
+    StartedAt        time.Time  `gorm:"autoCreateTime;index"`
+    CompletedAt      *time.Time `gorm:"index"`
+    ExpiresAt        *time.Time `gorm:"index"`
+    TimeLimitMinutes int        `gorm:"default:0"`
 
-	Status SessionStatus `gorm:"type:varchar(20);default:'in_progress';index:idx_user_status,priority:2"`
+    Status SessionStatus `gorm:"type:varchar(20);default:'in_progress';index:idx_user_status,priority:2"`
 
-	Score    int `gorm:"default:0"`
-	MaxScore int `gorm:"default:0;check:max_score >= 0"`
+    Score    int `gorm:"default:0"`
+    MaxScore int `gorm:"default:0"`
+    
+    // ДОБАВИТЬ ЭТО ПОЛЕ:
+    AnsweredCount int `gorm:"default:0"` // Количество отвеченных вопросов
 
-	CreatedAt time.Time `gorm:"autoCreateTime"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+    // JSON-массив UUID вопросов в случайном порядке
+    QuestionOrder string `gorm:"type:text"`
 
-	// Связи
-	User    User         `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
-	Book    Book         `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
-	Answers []UserAnswer `gorm:"foreignKey:SessionID;constraint:OnDelete:CASCADE"`
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+    UpdatedAt time.Time `gorm:"autoUpdateTime"`
+
+    // Связи
+    User    User         `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
+    Book    Book         `gorm:"foreignKey:BookID;constraint:OnDelete:CASCADE"`
+    Answers []UserAnswer `gorm:"foreignKey:SessionID;constraint:OnDelete:CASCADE"`
 }
 
 type SessionStatus string
@@ -58,6 +64,7 @@ func NewSession(userID, bookID uuid.UUID, duration time.Duration, maxScore int) 
 		MaxScore:         maxScore,
 		Status:           SessionStatusInProgress,
 		Score:            0,
+		AnsweredCount: 0,
 	}
 }
 
@@ -107,9 +114,6 @@ func (s *Session) IsExpired() bool {
 func (s *Session) Complete() error {
 	if s.IsCompleted() {
 		return errors.New("session already completed")
-	}
-	if s.IsExpired() {
-		return errors.New("cannot complete expired session")
 	}
 	now := time.Now()
 	s.CompletedAt = &now
@@ -215,6 +219,9 @@ func (s *Session) IsExpiringSoon(minutes int) bool {
 
 // BeforeCreate GORM хук
 func (s *Session) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
 	if s.Status == "" {
 		s.Status = SessionStatusInProgress
 	}

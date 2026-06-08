@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"med_book/internal/model"
 
@@ -150,11 +151,12 @@ func (tx *SessionTx) CreateAnswer(answer *model.UserAnswer) error {
 	return tx.tx.Create(answer).Error
 }
 
-// CountAnswers в транзакции
-func (tx *SessionTx) CountAnswers(sessionID uuid.UUID) (int, error) {
+// CountAnswers в транзакции — количество отвеченных вопросов
+func (tx *SessionTx) CountAnsweredQuestions(sessionID uuid.UUID) (int, error) {
 	var count int64
 	err := tx.tx.Model(&model.UserAnswer{}).
 		Where("session_id = ?", sessionID).
+		Distinct("question_id").
 		Count(&count).Error
 	return int(count), err
 }
@@ -169,30 +171,35 @@ func (tx *SessionTx) Rollback() error {
 	return tx.tx.Rollback().Error
 }
 
-// GetUserBooksStats возвращает статистику по всем книгам пользователя одним запросом
+// GetUserBooksStats возвращает статистику по всем книгам пользователя
 func (r *SessionRepository) GetUserBooksStats(ctx context.Context, userID uuid.UUID) ([]*UserBookStat, error) {
 	var stats []*UserBookStat
 
 	query := `
-        SELECT 
-            b.id as book_id,
-            b.title as book_name,
-            COALESCE(MAX(s.score), 0) as best_score,
-            COALESCE(q.question_count, 0) as max_score,
-            COUNT(DISTINCT s.id) as attempts_count,
-            ROUND(COALESCE(MAX(s.score), 0)::DECIMAL / NULLIF(q.question_count, 0) * 100, 2) as percent
-        FROM books b
-        CROSS JOIN LATERAL (
-            SELECT COUNT(*) as question_count 
-            FROM questions 
-            WHERE book_id = b.id
-        ) q
-        LEFT JOIN user_book_sessions s ON s.book_id = b.id 
-            AND s.user_id = $1 
-            AND s.status = 'completed'
-        GROUP BY b.id, b.title, q.question_count
-        ORDER BY percent DESC NULLS LAST
-    `
+		SELECT
+			b.id AS book_id,
+			b.title AS book_name,
+			COALESCE(MAX(s.score), 0) AS best_score,
+			COALESCE(q.question_count, 0) AS max_score,
+			COALESCE(COUNT(DISTINCT s.id), 0) AS attempts_count,
+			ROUND(
+				COALESCE(CAST(MAX(s.score) AS REAL), 0) /
+				NULLIF(CAST(q.question_count AS REAL), 0) * 100,
+				1
+			) AS percent
+		FROM books b
+		LEFT JOIN (
+			SELECT book_id, COUNT(*) AS question_count
+			FROM questions
+			GROUP BY book_id
+		) q ON q.book_id = b.id
+		LEFT JOIN user_book_sessions s
+			ON s.book_id = b.id
+			AND s.user_id = ?
+			AND s.status IN ('completed', 'expired')
+		GROUP BY b.id, b.title, q.question_count
+		ORDER BY b.title
+	`
 
 	err := r.db.WithContext(ctx).Raw(query, userID).Scan(&stats).Error
 	return stats, err
@@ -223,7 +230,94 @@ func (r *SessionRepository) GetUserAttempts(ctx context.Context, userID, bookID 
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&model.Session{}).
-		Where("user_id = ? AND book_id = ? AND status = ?", userID, bookID, model.SessionStatusCompleted).
+		Where("user_id = ? AND book_id = ? AND status IN ?", userID, bookID, []model.SessionStatus{
+			model.SessionStatusCompleted,
+			model.SessionStatusExpired,
+		}).
 		Count(&count).Error
 	return int(count), err
+}
+
+type AdminSessionReport struct {
+	SessionID   uuid.UUID `json:"session_id"`
+	LastName    string    `json:"last_name"`
+	FirstName   string    `json:"first_name"`
+	Patronymic  string    `json:"patronymic"`
+	BookTitle   string    `json:"book_title"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at"`
+	Score       int       `json:"score"`
+	MaxScore    int       `json:"max_score"`
+	Answers     []AdminAnswerReport `json:"answers"`
+}
+
+type AdminAnswerReport struct {
+	QuestionText  string   `json:"question_text"`
+	SelectedTexts []string `json:"selected_texts"`
+}
+
+func (r *SessionRepository) GetAdminReports(ctx context.Context, userID, bookID *uuid.UUID) ([]AdminSessionReport, error) {
+	query := r.db.WithContext(ctx).
+		Preload("User").
+		Preload("Book").
+		Preload("Answers").
+		Preload("Answers.Question").
+		Preload("Answers.Option").
+		Where("status IN ?", []model.SessionStatus{
+			model.SessionStatusCompleted,
+			model.SessionStatusExpired,
+		}).
+		Order("started_at DESC")
+
+	if userID != nil {
+		query = query.Where("user_id = ?", *userID)
+	}
+	if bookID != nil {
+		query = query.Where("book_id = ?", *bookID)
+	}
+
+	var sessions []model.Session
+	if err := query.Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+
+	reports := make([]AdminSessionReport, 0, len(sessions))
+	for _, session := range sessions {
+		report := AdminSessionReport{
+			SessionID:   session.ID,
+			LastName:    session.User.LastName,
+			FirstName:   session.User.FirstName,
+			Patronymic:  session.User.Patronymic,
+			BookTitle:   session.Book.Title,
+			StartedAt:   session.StartedAt,
+			CompletedAt: session.CompletedAt,
+			Score:       session.Score,
+			MaxScore:    session.MaxScore,
+		}
+
+		answersByQuestion := make(map[uuid.UUID][]model.UserAnswer)
+		for _, answer := range session.Answers {
+			answersByQuestion[answer.QuestionID] = append(answersByQuestion[answer.QuestionID], answer)
+		}
+
+		for questionID, userAnswers := range answersByQuestion {
+			if len(userAnswers) == 0 {
+				continue
+			}
+			questionText := userAnswers[0].Question.Text
+			selected := make([]string, 0, len(userAnswers))
+			for _, ua := range userAnswers {
+				selected = append(selected, ua.Option.Text)
+			}
+			report.Answers = append(report.Answers, AdminAnswerReport{
+				QuestionText:  questionText,
+				SelectedTexts: selected,
+			})
+			_ = questionID
+		}
+
+		reports = append(reports, report)
+	}
+
+	return reports, nil
 }

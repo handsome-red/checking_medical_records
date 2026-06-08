@@ -1,124 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Медицинский тест</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/test-styles.css">
+    <style>
+        .timer-expired-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .timer-expired-overlay.visible { display: flex; }
+        .timer-expired-modal {
+            background: #fff;
+            padding: 32px;
+            border-radius: 12px;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .timer-expired-modal h2 { color: #c0392b; margin-top: 0; }
+    </style>
 </head>
-<body>
-    <body class="test-page">
-        <div class="test-layout">
-            <!-- ЛЕВАЯ КОЛОНКА: Вопросы -->
-            <div class="questions-panel">
-                <div class="container">
-                    <div class="test-header">
-                        <h1>Тестирование</h1>
-                        <div class="test-info">
-                            <span class="book-name">{{.book_title}}</span>
-                        </div>
+<body class="test-page">
+    <div class="test-layout">
+        <div class="questions-panel">
+            <div class="container">
+                <div class="test-header">
+                    <h1>Тестирование</h1>
+                    <div class="test-info">
+                        <span class="book-name">{{.book_title}}</span>
                     </div>
-                    
-                    <div class="timer-container">
-                        <span class="timer-label">⏱ Осталось времени:</span>
-                        <span id="timer" class="timer-value">--:--</span>
-                    </div>
-                    
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {{.progress}}%"></div>
-                        <div class="progress-text">{{.current}} / {{.total}}</div>
-                    </div>
-                    
-                    <form method="POST" action="/test/submit" id="test-form">
-                        <input type="hidden" name="question_id" value="{{.question.ID}}">
-                        
-                        <div class="question-container">
-                            <div class="question-number">Вопрос №{{.current}}</div>
-                            <p class="question-text">{{.question.Text}}</p>
-                            
-                            <div class="options-container">
-                                {{range $idx, $opt := .question.Options}}
-                                    <div class="option">
-                                        <label>
-                                            <input type="checkbox" name="answers" value="{{$opt.ID}}">
-                                            <span class="option-text">{{$opt.Text}}</span>
-                                        </label>
-                                    </div>
-                                {{end}}
-                            </div>
-                        </div>
-                        
-                        <div class="button-group">
-                            <button type="submit" class="submit-btn">
-                                {{if eq .current .total}}Завершить тест{{else}}Следующий вопрос{{end}}
-                            </button>
-                        </div>
-                    </form>
                 </div>
-            </div>
-            <!-- ПРАВАЯ КОЛОНКА: Документ -->
-            <div class="document-panel">
-                <div class="document-container">
-                    <div class="document-info">
-                        📄 {{.CurrentBook.Name}}
+
+                <div class="timer-container">
+                    <span class="timer-label">⏱ Осталось времени:</span>
+                    <span id="timer" class="timer-value">{{.time_remaining}}</span>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{.progress}}%"></div>
+                    <div class="progress-text">{{.current}} / {{.total}}</div>
+                </div>
+
+                <form method="POST" action="/test/submit" id="test-form">
+                    <input type="hidden" name="question_id" value="{{.question.ID}}">
+
+                    <div class="question-container">
+                        <div class="question-number">Вопрос №{{.current}}</div>
+                        <p class="question-text">{{.question.Text}}</p>
+
+                        <div class="options-container">
+                            {{range $idx, $opt := .question.Options}}
+                            <div class="option">
+                                <label>
+                                    <input type="checkbox" name="answers" value="{{$opt.ID}}">
+                                    <span class="option-text">{{$opt.Text}}</span>
+                                </label>
+                            </div>
+                            {{end}}
+                        </div>
                     </div>
-                    <div id="document-viewer" class="document-viewer">
-                        <div id="pages-container" class="pages-container">
+
+                    <div class="button-group">
+                        <button type="submit" class="submit-btn">
+                            {{if eq .current .total}}Завершить тест{{else}}Следующий вопрос{{end}}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="document-panel">
+            <div class="document-container">
+                <div class="document-info">📄 {{.book_title}}</div>
+                <div id="document-viewer" class="document-viewer">
+                    <div id="pages-container" class="pages-container">
                         {{if .pages}}
                             {{range .pages}}
-                                <div class="page-item">
-                                    <img src="{{.ImageURL}}" alt="Страница {{.PageNumber}}" class="page-image">
-                                    <div class="page-number">Страница {{.PageNumber}}</div>
-                                </div>
+                            <div class="page-item">
+                                <img src="{{.ImageURL}}" alt="Страница {{.PageNumber}}" class="page-image">
+                                <div class="page-number">Страница {{.PageNumber}}</div>
+                            </div>
                             {{end}}
                         {{else}}
                             <div class="loading">Нет страниц для отображения</div>
                         {{end}}
-                        </div>
                     </div>
                 </div>
             </div>
-            <!-- ПРАВАЯ КОЛОНКА: Документ -->
-            
-        </div>     
-    </body>
-        
+        </div>
+    </div>
+
+    <div id="expired-overlay" class="timer-expired-overlay">
+        <div class="timer-expired-modal">
+            <h2>Время истекло</h2>
+            <p>30 минут на прохождение теста закончились. Тест завершён автоматически.</p>
+            <p>Переход к результатам...</p>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // ОТЛАДКА: вывести полученное значение
-            console.log("expiresAt raw:", {{.expiresAt}});
-            console.log("expiresAt type:", typeof {{.expiresAt}});
-            
             const expiresAt = new Date({{.expiresAt}} * 1000);
-            console.log("expiresAt date:", expiresAt);
-            console.log("now:", new Date());
-            
             const timerElement = document.getElementById('timer');
-            
-            if (timerElement) {
-                function updateTimer() {
-                    const now = new Date();
-                    const distance = expiresAt - now;
-                    
-                    console.log("distance (ms):", distance);
-                    
-                    if (distance <= 0) {
-                        timerElement.innerHTML = "00:00";
-                        console.log("distance <= 0, showing 00:00");
-                        return;
-                    }
-                    
-                    const minutes = Math.floor(distance / 60000);
-                    const seconds = Math.floor((distance % 60000) / 1000);
-                    const timeString = minutes.toString().padStart(2, '0') + ":" + 
-                                    seconds.toString().padStart(2, '0');
-                    console.log("time:", timeString);
-                    timerElement.innerHTML = timeString;
-                }
-                
-                updateTimer();
-                setInterval(updateTimer, 1000);
+            const overlay = document.getElementById('expired-overlay');
+            let expiredHandled = false;
+
+            function handleExpired() {
+                if (expiredHandled) return;
+                expiredHandled = true;
+                timerElement.textContent = '00:00';
+                overlay.classList.add('visible');
+                setTimeout(function() {
+                    window.location.href = '/test/expire';
+                }, 2000);
             }
+
+            function updateTimer() {
+                const distance = expiresAt - new Date();
+                if (distance <= 0) {
+                    handleExpired();
+                    return;
+                }
+                const minutes = Math.floor(distance / 60000);
+                const seconds = Math.floor((distance % 60000) / 1000);
+                timerElement.textContent =
+                    String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+            }
+
+            updateTimer();
+            setInterval(updateTimer, 1000);
         });
     </script>
 </body>

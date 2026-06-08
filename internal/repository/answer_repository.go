@@ -33,6 +33,7 @@ func (r *AnswerRepository) GetAnsweredQuestionIDs(ctx context.Context, sessionID
 	err := r.db.WithContext(ctx).
 		Model(&model.UserAnswer{}).
 		Where("session_id = ?", sessionID).
+		Distinct("question_id").
 		Pluck("question_id", &ids).Error
 	return ids, err
 }

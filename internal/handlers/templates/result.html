@@ -1,16 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <title>Результаты теста</title>
     <link rel="stylesheet" href="/static/css/styles.css">
     <style>
-        /* Временные стили для отладки */
-        .register-link {
-            margin-top: 30px;
+        .result-box {
             text-align: center;
-            padding: 20px;
+            padding: 40px 20px;
+            margin: 30px 0;
+            background: #f8f9fa;
+            border-radius: 12px;
         }
+        .result-score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .expired-notice {
+            color: #c0392b;
+            margin-bottom: 16px;
+        }
+        .register-link { margin-top: 30px; text-align: center; }
         .register-link a {
             display: inline-block;
             padding: 12px 24px;
@@ -18,28 +29,25 @@
             color: white !important;
             text-decoration: none;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-        }
-        .register-link a:hover {
-            background-color: #5a67d8;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Результаты теста</h1>
-        
-        <div>
-            <h2>Итог: {{.correct}} из {{.total}} правильных ответов</h2>
-            <p>Процент: {{printf "%.1f" .percentage}}%</p>
-        </div>
-        
-        <hr>
-        
-        <div class="register-link">
-            <a href="/profile">В профиль</a>
-        </div>
+<div class="container">
+    <h1>Результаты теста</h1>
+
+    {{if .expired}}
+    <p class="expired-notice">Время на прохождение теста истекло.</p>
+    {{end}}
+
+    <div class="result-box">
+        <div class="result-score">{{.correct}}/{{.total}}</div>
+        <p>{{printf "%.1f" .percentage}}%</p>
     </div>
+
+    <div class="register-link">
+        <a href="/profile">В профиль</a>
+    </div>
+</div>
 </body>
 </html>

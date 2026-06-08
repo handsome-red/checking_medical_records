@@ -57,3 +57,15 @@ func (s *UserService) Authenticate(ctx context.Context, email, password string) 
 func (s *UserService) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	return s.userRepo.FindByEmail(ctx, email)
 }
+
+func (s *UserService) GetAllUsers(ctx context.Context) ([]model.User, error) {
+	return s.userRepo.FindAll(ctx)
+}
+
+func (s *UserService) PromoteToAdmin(ctx context.Context, email string) error {
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	return s.userRepo.SetRole(ctx, user.ID, model.RoleAdmin)
+}

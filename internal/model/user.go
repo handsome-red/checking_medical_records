@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type UserRole string
@@ -16,7 +17,7 @@ const (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"id" db:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	ID           uuid.UUID `json:"id" db:"id" gorm:"type:text;primaryKey"`
 	FirstName    string    `json:"first_name" db:"first_name" gorm:"not null;size:50"`
 	LastName     string    `json:"last_name" db:"last_name" gorm:"not null;size:50"`
 	Patronymic   string    `json:"patronymic" db:"patronymic" gorm:"not null;size:50"`
@@ -63,4 +64,9 @@ func (u *User) CheckPassword(password string) bool {
 
 func (u *User) IsAdmin() bool {
 	return u.Role == RoleAdmin
+}
+
+func (u *User) BeforeCreate(tx *gorm.DB) error {
+	ensureUUID(&u.ID)
+	return nil
 }

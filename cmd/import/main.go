@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"gorm.io/driver/postgres"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -15,32 +15,27 @@ import (
 )
 
 func main() {
-	// Параметры командной строки
 	var (
-		dsn          = flag.String("dsn", "", "Connection string для PostgreSQL")
-		filePath     = flag.String("file", "data.json", "Путь к JSON файлу")
+		dsn          = flag.String("dsn", "./data/med_book.db?_journal_mode=WAL&_foreign_keys=1", "SQLite DSN")
+		filePath     = flag.String("file", "pkg/questions/questions.json", "Путь к JSON файлу")
 		dropDB       = flag.Bool("drop", false, "Очистить все книги перед импортом")
 		skipIfExists = flag.Bool("skip", false, "Пропускать существующие книги")
 	)
 	flag.Parse()
 
-	// DSN по умолчанию
-	if *dsn == "" {
-		*dsn = "host=localhost user=atlas password=123 dbname=med_book port=5432 sslmode=disable TimeZone=UTC"
-		fmt.Println("⚠️  Используется DSN по умолчанию:", *dsn)
+	if err := os.MkdirAll("data", 0o755); err != nil {
+		log.Fatal("Failed to create data directory:", err)
 	}
 
-	// Подключаемся к БД
-	db, err := gorm.Open(postgres.Open(*dsn), &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(*dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
-		log.Fatal("❌ Ошибка подключения к БД:", err)
+		log.Fatal("Failed to connect to database:", err)
 	}
-	fmt.Println("✅ Подключение к БД установлено")
+	fmt.Println("Database connected")
 
-	// Выполняем миграцию
-	fmt.Println("📦 Выполняем миграцию схемы...")
+	fmt.Println("Running migrations...")
 	if err := db.AutoMigrate(
 		&model.Book{},
 		&model.BookPage{},
@@ -51,55 +46,41 @@ func main() {
 		&model.Session{},
 		&model.UserAnswer{},
 	); err != nil {
-		log.Fatal("❌ Ошибка миграции:", err)
+		log.Fatal("Migration failed:", err)
 	}
-	fmt.Println("✅ Миграция завершена")
 
-	// Проверяем существование файла
 	if _, err := os.Stat(*filePath); os.IsNotExist(err) {
-		log.Fatalf("❌ Файл не найден: %s", *filePath)
+		log.Fatalf("File not found: %s", *filePath)
 	}
 
-	// Создаём сервис импорта
 	service := _import.NewImportService(db)
 
-	// Очищаем данные если нужно
 	if *dropDB {
-		fmt.Println("⚠️  Очистка всех книг...")
+		fmt.Println("Clearing books...")
 		if err := service.ClearBooks(); err != nil {
-			log.Fatal("❌ Ошибка очистки:", err)
+			log.Fatal("Clear failed:", err)
 		}
 	}
 
-	// Импортируем данные
-	fmt.Printf("📖 Импорт из файла: %s\n\n", *filePath)
+	fmt.Printf("Import from: %s\n\n", *filePath)
 
+	var importErr error
 	if *skipIfExists {
-		err = service.ImportBooksIfNotExists(*filePath)
+		importErr = service.ImportBooksIfNotExists(*filePath)
 	} else {
-		err = service.ImportFromFile(*filePath)
+		importErr = service.ImportFromFile(*filePath)
 	}
 
-	if err != nil {
-		log.Fatal("❌ Ошибка импорта:", err)
+	if importErr != nil {
+		log.Fatal("Import failed:", importErr)
 	}
 
-	// Выводим статистику
 	printStats(db)
-
-	fmt.Println("\n🎉 Импорт успешно завершён!")
+	fmt.Println("\nImport completed successfully")
 }
 
 func printStats(db *gorm.DB) {
-	var (
-		bookCount     int64
-		questionCount int64
-		optionCount   int64
-		userCount     int64
-		sessionCount  int64
-		answerCount   int64
-	)
-
+	var bookCount, questionCount, optionCount, userCount, sessionCount, answerCount int64
 	db.Model(&model.Book{}).Count(&bookCount)
 	db.Model(&model.Question{}).Count(&questionCount)
 	db.Model(&model.Option{}).Count(&optionCount)
@@ -107,11 +88,11 @@ func printStats(db *gorm.DB) {
 	db.Model(&model.Session{}).Count(&sessionCount)
 	db.Model(&model.UserAnswer{}).Count(&answerCount)
 
-	fmt.Println("\n📊 Статистика базы данных:")
-	fmt.Printf("   📚 Книг: %d\n", bookCount)
-	fmt.Printf("   ❓ Вопросов: %d\n", questionCount)
-	fmt.Printf("   🔘 Вариантов ответов: %d\n", optionCount)
-	fmt.Printf("   👥 Пользователей: %d\n", userCount)
-	fmt.Printf("   📝 Сессий: %d\n", sessionCount)
-	fmt.Printf("   💬 Ответов: %d\n", answerCount)
+	fmt.Println("\nDatabase stats:")
+	fmt.Printf("  Books: %d\n", bookCount)
+	fmt.Printf("  Questions: %d\n", questionCount)
+	fmt.Printf("  Options: %d\n", optionCount)
+	fmt.Printf("  Users: %d\n", userCount)
+	fmt.Printf("  Sessions: %d\n", sessionCount)
+	fmt.Printf("  Answers: %d\n", answerCount)
 }

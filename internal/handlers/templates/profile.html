@@ -39,7 +39,12 @@
 
         <h1>Добро пожаловать в систему тестирования медицинских книжек</h1>
         
-        <p><strong>{{.FirstName}} {{.LastName}} {{.Patronymic}}</strong></p>
+        <p><strong>{{.LastName}} {{.FirstName}} {{.Patronymic}}</strong></p>
+
+        <div style="margin-bottom: 16px;">
+            <a href="/logout">Выйти</a>
+            {{if .IsAdmin}} | <a href="/admin">Админ-панель</a>{{end}}
+        </div>
         
         <h2>Тесты</h2>
         

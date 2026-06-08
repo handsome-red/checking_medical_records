@@ -3,55 +3,49 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"med_book/internal/model"
 	"med_book/internal/service"
 	"med_book/internal/templates"
-
-	"github.com/google/uuid"
 )
 
 type RegistrationHandler struct {
-	userService    *service.UserService
-	sessionService *service.SessionService
-	bookService    *service.BookService
-	template       *templates.TemplatesManager
+	userService *service.UserService
+	authService *service.AuthService
+	adminEmail  string
+	template    *templates.TemplatesManager
 }
 
 func NewRegistrationHandler(
 	userService *service.UserService,
-	sessionService *service.SessionService,
-	bookService *service.BookService,
+	authService *service.AuthService,
+	adminEmail string,
 	template *templates.TemplatesManager,
 ) *RegistrationHandler {
 	return &RegistrationHandler{
-		userService:    userService,
-		sessionService: sessionService,
-		bookService:    bookService,
-		template:       template,
+		userService: userService,
+		authService: authService,
+		adminEmail:  adminEmail,
+		template:    template,
 	}
 }
 
 func (h *RegistrationHandler) ShowRegistrationForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	err := h.template.ExecuteTemplate(w, "register.html", nil)
-	if err != nil {
+	if err := h.template.ExecuteTemplate(w, "register.html", nil); err != nil {
 		http.Error(w, "Ошибка загрузки формы регистрации", http.StatusInternalServerError)
 	}
 }
 
 func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		fmt.Printf("Метод %s, нужен метод POST\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if err := r.ParseForm(); err != nil {
-		fmt.Printf("Не удалось распарсить форму\n")
 		http.Error(w, "Failed to parse form", http.StatusBadRequest)
 		return
 	}
@@ -62,75 +56,44 @@ func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	email := r.FormValue("email")
 
-	fmt.Printf("📝 Регистрация: email='%s', firstName='%s', lastName='%s'\n",
-		email, firstName, lastName)
-
 	ctx := r.Context()
 
-	// 1. Находим или создаём пользователя
 	user, err := h.findOrCreateUser(ctx, firstName, lastName, patronymic, email, password)
 	if err != nil {
 		data := map[string]any{
 			"Error":      err.Error(),
+			"Email":      email,
 			"FirstName":  firstName,
 			"LastName":   lastName,
 			"Patronymic": patronymic,
 		}
-		h.template.ExecuteTemplate(w, "register.html", data)
+		_ = h.template.ExecuteTemplate(w, "register.html", data)
 		return
 	}
 
-	// // 2. Получаем первую книгу для теста
-	// books, err := h.bookService.GetAllBooks(ctx)
-	// if err != nil || len(books) == 0 {
-	// 	data := map[string]any{
-	// 		"Error":      "Книги не найдены",
-	// 		"FirstName":  firstName,
-	// 		"LastName":   lastName,
-	// 		"Patronymic": patronymic,
-	// 	}
-	// 	h.template.ExecuteTemplate(w, "register.html", data)
-	// 	return
-	// }
+	if h.adminEmail != "" && email == h.adminEmail {
+		_ = h.userService.PromoteToAdmin(ctx, email)
+	}
 
-	// // Берём первую книгу (или можно позволить пользователю выбрать)
-	// bookID := books[0].ID
+	token, err := h.authService.GenerateToken(user.ID)
+	if err != nil {
+		http.Error(w, "Ошибка авторизации", http.StatusInternalServerError)
+		return
+	}
 
-	// // 3. Создаём сессию
-	// session, err := h.sessionService.StartTest(ctx, user.ID, bookID, 30*time.Minute)
-	// if err != nil {
-	// 	data := map[string]any{
-	// 		"Error":      "Ошибка создания сессии: " + err.Error(),
-	// 		"FirstName":  firstName,
-	// 		"LastName":   lastName,
-	// 		"Patronymic": patronymic,
-	// 	}
-	// 	h.template.ExecuteTemplate(w, "register.html", data)
-	// 	return
-	// }
-
-	// 4. Устанавливаем cookies
-	h.setAuthCookie(w, user.ID)
-	// h.setSessionCookie(w, session.ID)
-
-	fmt.Printf("✅ Пользователь %s %s (ID: %v) зарегистрирован\n",
-		user.LastName, user.FirstName, user.ID)
-
+	setAuthTokenCookie(w, token)
 	http.Redirect(w, r, "/profile", http.StatusSeeOther)
 }
 
-// findOrCreateUser находит пользователя по ФИО или создаёт нового
 func (h *RegistrationHandler) findOrCreateUser(
 	ctx context.Context,
 	firstName, lastName, patronymic, email, password string,
 ) (*model.User, error) {
-	// ✅ Проверяем только по email
 	existing, err := h.userService.FindByEmail(ctx, email)
 	if err == nil && existing != nil {
 		return nil, fmt.Errorf("пользователь с таким email уже существует")
 	}
 
-	// Если не найден, создаём нового
 	user, err := h.userService.Register(ctx, email, firstName, lastName, patronymic, password)
 	if err != nil {
 		return nil, err
@@ -139,39 +102,14 @@ func (h *RegistrationHandler) findOrCreateUser(
 	return user, nil
 }
 
-func (h *RegistrationHandler) setAuthCookie(w http.ResponseWriter, userID uuid.UUID) {
+func setAuthTokenCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "user_id",
-		Value:    userID.String(),
+		Name:     "auth_token",
+		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		MaxAge:   86400, // 24 часа
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   24 * 60 * 60,
 	})
-}
-
-func (h *RegistrationHandler) setSessionCookie(w http.ResponseWriter, sessionID uuid.UUID) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_id",
-		Value:    sessionID.String(),
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   1800, // 30 минут
-	})
-}
-
-func handleError(w http.ResponseWriter, err error) {
-	switch err.Error() {
-	case "user with this name already exists":
-		http.Error(w, err.Error(), http.StatusConflict)
-	case "invalid name", "too short password":
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	default:
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
-}
-
-func respondWithJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
 }

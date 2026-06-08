@@ -8,12 +8,12 @@ import (
 
 type UserAnswer struct {
 	ID         uint      `gorm:"primaryKey;autoIncrement"`
-	SessionID  uuid.UUID `gorm:"type:uuid;not null;index"` // ссылка на сессию (INT для производительности)
-	QuestionID uuid.UUID `gorm:"type:uuid;not null;index"` // ссылка на вопрос
-	OptionID   uuid.UUID `gorm:"type:uuid;not null"`       // выбранный вариант ответа
+	SessionID  uuid.UUID `gorm:"type:text;not null;index"`
+	QuestionID uuid.UUID `gorm:"type:text;not null;index"`
+	OptionID   uuid.UUID `gorm:"type:text;not null"`
 	IsCorrect  bool      `gorm:"default:false;index"`      // правильный ли ответ (дублируем для скорости)
 	Points     int       `gorm:"default:0"`                // сколько баллов получил
-	AnsweredAt time.Time `gorm:"default:now();index"`      // когда ответил
+	AnsweredAt time.Time `gorm:"autoCreateTime;index"`
 
 	Session  Session  `gorm:"foreignKey:SessionID;constraint:OnDelete:CASCADE"`
 	Question Question `gorm:"foreignKey:QuestionID"`

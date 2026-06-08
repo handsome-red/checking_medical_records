@@ -1,62 +1,18 @@
 services:
-  # Наш Go-сервер
   server:
     build:
-      context: .  # Говорим "ищи Dockerfile в текущей папке"
-    ports:
-      - "8080:8080"  # Открываем доступ к сайту на localhost:8080
-    environment:
-      - DB_HOST=database
-      - DB_PORT=5432
-      - DB_USER=atlas
-      - DB_PASSWORD=123
-      - DB_NAME=med_book
-    depends_on:
-      data-importer:
-        condition: service_completed_successfully
-      database:
-        condition: service_healthy
-    restart: unless-stopped
-
-  data-importer:
-    build:
       context: .
-      dockerfile: Dockerfile.importer
-    depends_on:
-      database:
-        condition: service_healthy
-    environment:
-      DB_HOST: database
-      DB_PORT: 5432
-      DB_USER: atlas
-      DB_PASSWORD: 123
-      DB_NAME: med_book
-    volumes:
-      - ./pkg/questions:/data  # Монтируем папку с вопросами
-    command: >
-      -dsn "host=database user=atlas password=123 dbname=med_book port=5432 sslmode=disable"
-      -file /data/questions.json  # ← используем ваш JSON
-      -skip true
-    restart: "no"
-
-  # Сервис базы данных
-  database:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=atlas
-      - POSTGRES_PASSWORD=123
-      - POSTGRES_DB=med_book
     ports:
-      - "5432:5432"
+      - "8080:8080"
+    environment:
+      - DB_DRIVER=sqlite
+      - DB_DSN=/data/med_book.db?_journal_mode=WAL&_foreign_keys=1
+      - JWT_SECRET=change-me-in-production
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - SERVER_PORT=8080
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - app-data:/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U atlas -d med_book"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
 volumes:
-  pgdata:
+  app-data:

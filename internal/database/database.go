@@ -3,10 +3,14 @@ package database
 import (
 	"fmt"
 	"log"
-	"med_book/internal/config"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
-	"gorm.io/driver/postgres"
+	"med_book/internal/config"
+
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -15,46 +19,57 @@ type Database struct {
 	db *gorm.DB
 }
 
-// NewDatabase создаёт новый экземпляр Database
 func NewDatabase(cfg *config.Config) (*Database, error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
-		cfg.DBHost,
-		cfg.DBUser,
-		cfg.DBPassword,
-		cfg.DBName,
-		cfg.DBPort,
-	)
+	if cfg.DBDriver != "sqlite" {
+		return nil, fmt.Errorf("unsupported database driver: %s (only sqlite is supported)", cfg.DBDriver)
+	}
 
-	// Подключаемся к БД
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		// Logger: logger.Default.LogMode(logger.Info),
+	if err := ensureSQLiteDir(cfg.DBDSN); err != nil {
+		return nil, err
+	}
+
+	db, err := gorm.Open(sqlite.Open(cfg.DBDSN), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Настройка пула соединений
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, err
 	}
 
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	log.Println("Database connected successfully!")
+	log.Println("SQLite database connected successfully")
 
 	return &Database{db: db}, nil
 }
 
-// GetDB возвращает GORM DB инстанс
+func ensureSQLiteDir(dsn string) error {
+	path := dsn
+	if idx := strings.Index(path, "?"); idx >= 0 {
+		path = path[:idx]
+	}
+	if path == "" || path == ":memory:" {
+		return nil
+	}
+
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+
+	return os.MkdirAll(dir, 0o755)
+}
+
 func (d *Database) GetDB() *gorm.DB {
 	return d.db
 }
 
-// Close закрывает соединение с БД
 func (d *Database) Close() error {
 	if d.db == nil {
 		return nil
@@ -68,7 +83,6 @@ func (d *Database) Close() error {
 	return sqlDB.Close()
 }
 
-// Ping проверяет соединение с БД
 func (d *Database) Ping() error {
 	sqlDB, err := d.db.DB()
 	if err != nil {

@@ -32,7 +32,6 @@ func NewProfileHandler(
 	}
 }
 
-// GetUserProfile возвращает профиль пользователя
 func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok {
@@ -40,7 +39,6 @@ func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Получаем пользователя
 	user, err := h.userService.GetUserByID(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
@@ -53,7 +51,6 @@ func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Получаем статистику по книгам
 	profileBooks := make([]ProfileBook, 0, len(stats))
 	for _, stat := range stats {
 		profileBooks = append(profileBooks, ProfileBook{
@@ -71,38 +68,10 @@ func (h *ProfileHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) 
 		"LastName":     user.LastName,
 		"Patronymic":   user.Patronymic,
 		"ProfileBooks": profileBooks,
+		"IsAdmin":      user.IsAdmin(),
 	}
 
-	h.template.ExecuteTemplate(w, "profile.html", data)
-}
-
-// GetUserProfile возвращает профиль пользователя
-func (h *ProfileHandler) Statistics(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
-	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	// Получаем пользователя
-	user, err := h.userService.GetUserByID(r.Context(), userID)
-	if err != nil {
-		http.Error(w, "User not found", http.StatusNotFound)
-		return
-	}
-
-	if !user.IsAdmin() {
-		http.Error(w, "User is not admin", http.StatusNotFound)
-		return
-	}
-
-	statistics := h.sessionService.GetGlobalUsersStat()
-
-	data := map[string]any{
-		"statistics": statistics,
-	}
-
-	h.template.ExecuteTemplate(w, "statistics.html", data)
+	_ = h.template.ExecuteTemplate(w, "profile.html", data)
 }
 
 type ProfileBook struct {

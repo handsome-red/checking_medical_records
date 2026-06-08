@@ -1,3 +1,11 @@
+run:
+	# Импорт (опционально, при старте API импорт тоже выполняется)
+	go run ./cmd/import/ -file pkg/questions/questions.json -skip
+
+	# Запуск сервера
+	set ADMIN_EMAIL=admin@example.com
+	go run ./cmd/api/
+
 ALL:
 	go run cmd/api/main.go
 
