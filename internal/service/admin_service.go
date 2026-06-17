@@ -94,13 +94,13 @@ func (s *AdminService) ExportReportsExcel(reports []repository.AdminSessionRepor
 	return buf.Bytes(), nil
 }
 
-func joinAnswerTexts(texts []string) string {
-	if len(texts) == 0 {
+func joinAnswerTexts(selectedTexts []repository.AdminTextReport) string {
+	if len(selectedTexts) == 0 {
 		return "—"
 	}
-	result := texts[0]
-	for i := 1; i < len(texts); i++ {
-		result += " | " + texts[i]
+	result := selectedTexts[0].Text
+	for i := 1; i < len(selectedTexts); i++ {
+		result += ", " + selectedTexts[i].Text
 	}
 	return result
 }

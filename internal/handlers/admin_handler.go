@@ -67,28 +67,50 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 	viewReports := make([]AdminReportView, 0, len(reports))
 	for _, report := range reports {
 		endTime := ""
+		duration := ""
 		if report.CompletedAt != nil {
 			endTime = report.CompletedAt.Format("15:04")
+			duration = report.CompletedAt.Sub(report.StartedAt).String()
 		}
 
-		answers := make([]string, 0, len(report.Answers))
+		// answers := make([]string, 0, len(report.Answers))
+		// for _, answer := range report.Answers {
+		// 	text := joinSelected(answer.SelectedTexts)
+		// 	if answer.QuestionText != "" {
+		// 		text = answer.QuestionText + ": " + text
+		// 	}
+		// 	answers = append(answers, text)
+		// }
+
+		questions := make([]QuestionView, 0, len(report.Answers))
 		for _, answer := range report.Answers {
-			text := joinSelected(answer.SelectedTexts)
-			if answer.QuestionText != "" {
-				text = answer.QuestionText + ": " + text
+
+			answerViews := make([]AnswerView, 0, len(answer.SelectedTexts))
+
+			for _, textReport := range answer.SelectedTexts {
+				answerViews = append(answerViews, AnswerView{
+					Text:      textReport.Text,
+					IsCorrect: textReport.IsCorrect,
+				})
 			}
-			answers = append(answers, text)
+
+			questions = append(questions, QuestionView{
+				Text:    answer.QuestionText,
+				Answers: answerViews,
+				// Correct: allCorrect,
+			})
 		}
 
 		viewReports = append(viewReports, AdminReportView{
-			FIO:         fmt.Sprintf("%s %s %s", report.LastName, report.FirstName, report.Patronymic),
-			Date:        report.StartedAt.Format("02.01.2006"),
-			StartTime:   report.StartedAt.Format("15:04"),
-			EndTime:     endTime,
-			BookTitle:   report.BookTitle,
-			Score:       report.Score,
-			MaxScore:    report.MaxScore,
-			AnswerTexts: answers,
+			FIO:       fmt.Sprintf("%s %s %s", report.LastName, report.FirstName, report.Patronymic),
+			Date:      report.StartedAt.Format("02.01.2006"),
+			StartTime: report.StartedAt.Format("15:04"),
+			EndTime:   endTime,
+			Duration:  duration,
+			BookTitle: report.BookTitle,
+			Score:     report.Score,
+			MaxScore:  report.MaxScore,
+			Questions: questions,
 		})
 	}
 
@@ -186,24 +208,39 @@ func parseAdminFilters(r *http.Request) (*uuid.UUID, *uuid.UUID) {
 	return userFilter, bookFilter
 }
 
-type AdminReportView struct {
-	FIO         string
-	Date        string
-	StartTime   string
-	EndTime     string
-	BookTitle   string
-	Score       int
-	MaxScore    int
-	AnswerTexts []string
+// AnswerView представляет один ответ пользователя
+type AnswerView struct {
+	Text      string `json:"text"`       // Текст ответа
+	IsCorrect bool   `json:"is_correct"` // Правильный ли ответ
 }
 
-func joinSelected(texts []string) string {
-	if len(texts) == 0 {
-		return "—"
-	}
-	result := texts[0]
-	for i := 1; i < len(texts); i++ {
-		result += ", " + texts[i]
-	}
-	return result
+// QuestionView представляет вопрос с ответами пользователя
+type QuestionView struct {
+	Text    string       `json:"text"`    // Текст вопроса
+	Answers []AnswerView `json:"answers"` // Ответы пользователя
+	// Correct bool         `json:"correct"` // Правильно ли отвечен вопрос (все ответы верны)
 }
+
+// AdminReportView представляет отчет по сессии
+type AdminReportView struct {
+	FIO       string         `json:"fio"`
+	Date      string         `json:"date"`
+	StartTime string         `json:"start_time"`
+	EndTime   string         `json:"end_time"`
+	Duration  string         `json:"duration"`
+	BookTitle string         `json:"book_title"`
+	Score     int            `json:"score"`
+	MaxScore  int            `json:"max_score"`
+	Questions []QuestionView `json:"questions"`
+}
+
+// func joinSelected(texts []string) QuestionView {
+// 	if len(texts) == 0 {
+// 		return "—"
+// 	}
+// 	result := texts[0]
+// 	for i := 1; i < len(texts); i++ {
+// 		result += ", " + texts[i]
+// 	}
+// 	return result
+// }

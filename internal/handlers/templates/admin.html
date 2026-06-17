@@ -66,13 +66,25 @@
                 <td>{{.Date}}</td>
                 <td>{{.StartTime}}</td>
                 <td>{{.EndTime}}</td>
+                <td>{{.Duration}}</td>
                 <td>{{.BookTitle}}</td>
                 <td>{{.Score}}/{{.MaxScore}}</td>
                 <td class="answers">
-                    {{range .AnswerTexts}}
-                        <div>{{.}}</div>
+                    {{range .Questions}}
+                        <div class="question-block">
+                            <div class="question-text">{{.Text}}</div>
+                            <div class="answers-list">
+                                {{range .Answers}}
+                                    <span class="answer-item {{if .IsCorrect}}correct{{else}}incorrect{{end}}">
+                                        {{.Text}}
+                                    </span>
+                                {{else}}
+                                    <span class="no-answers">Нет ответов</span>
+                                {{end}}
+                            </div>
+                        </div>
                     {{else}}
-                        —
+                        <span class="no-answers">Нет вопросов</span>
                     {{end}}
                 </td>
             </tr>

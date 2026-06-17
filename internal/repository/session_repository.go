@@ -239,21 +239,27 @@ func (r *SessionRepository) GetUserAttempts(ctx context.Context, userID, bookID 
 }
 
 type AdminSessionReport struct {
-	SessionID   uuid.UUID `json:"session_id"`
-	LastName    string    `json:"last_name"`
-	FirstName   string    `json:"first_name"`
-	Patronymic  string    `json:"patronymic"`
-	BookTitle   string    `json:"book_title"`
-	StartedAt   time.Time `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at"`
-	Score       int       `json:"score"`
-	MaxScore    int       `json:"max_score"`
+	SessionID   uuid.UUID           `json:"session_id"`
+	LastName    string              `json:"last_name"`
+	FirstName   string              `json:"first_name"`
+	Patronymic  string              `json:"patronymic"`
+	BookTitle   string              `json:"book_title"`
+	StartedAt   time.Time           `json:"started_at"`
+	CompletedAt *time.Time          `json:"completed_at"`
+	Score       int                 `json:"score"`
+	MaxScore    int                 `json:"max_score"`
 	Answers     []AdminAnswerReport `json:"answers"`
 }
 
+type AdminTextReport struct {
+	Text      string `json:"text"`
+	IsCorrect bool   `json:"is_correct"`
+}
+
 type AdminAnswerReport struct {
-	QuestionText  string   `json:"question_text"`
-	SelectedTexts []string `json:"selected_texts"`
+	QuestionText  string            `json:"question_text"`
+	SelectedTexts []AdminTextReport `json:"selected_texts"`
+	// IsCorrect     bool              `json:"is_all_correct"`
 }
 
 func (r *SessionRepository) GetAdminReports(ctx context.Context, userID, bookID *uuid.UUID) ([]AdminSessionReport, error) {
@@ -300,20 +306,23 @@ func (r *SessionRepository) GetAdminReports(ctx context.Context, userID, bookID 
 			answersByQuestion[answer.QuestionID] = append(answersByQuestion[answer.QuestionID], answer)
 		}
 
-		for questionID, userAnswers := range answersByQuestion {
+		for _, userAnswers := range answersByQuestion {
 			if len(userAnswers) == 0 {
 				continue
 			}
 			questionText := userAnswers[0].Question.Text
-			selected := make([]string, 0, len(userAnswers))
+			selected := make([]AdminTextReport, 0, len(userAnswers))
 			for _, ua := range userAnswers {
-				selected = append(selected, ua.Option.Text)
+				selected = append(selected, AdminTextReport{
+					Text:      ua.Option.Text,
+					IsCorrect: ua.Option.IsCorrect,
+				})
 			}
+
 			report.Answers = append(report.Answers, AdminAnswerReport{
 				QuestionText:  questionText,
 				SelectedTexts: selected,
 			})
-			_ = questionID
 		}
 
 		reports = append(reports, report)

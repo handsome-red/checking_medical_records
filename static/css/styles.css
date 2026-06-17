@@ -235,3 +235,94 @@ small {
     display: inline-block;
 }
 
+/* фв */
+
+/* Стили для ответов в админ-панели */
+.answers {
+    max-width: 420px;
+    white-space: normal;
+}
+
+.question-block {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.question-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.question-text {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 6px;
+}
+
+.answers-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-left: 8px;
+}
+
+.answer-item {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    display: inline-block;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+/* Правильный ответ - зеленый */
+.answer-item.correct {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #b8daff;
+}
+
+/* Неправильный ответ - красный */
+.answer-item.incorrect {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Нет ответов */
+.no-answers {
+    color: #999;
+    font-style: italic;
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+/* Дополнительно: иконки статуса для ответов */
+.answer-item.correct::before {
+    content: "✓ ";
+    font-weight: bold;
+}
+
+.answer-item.incorrect::before {
+    content: "✗ ";
+    font-weight: bold;
+}
+
+/* Адаптив для мобильных устройств */
+@media (max-width: 768px) {
+    .answers {
+        max-width: 100%;
+    }
+    
+    .answer-item {
+        font-size: 11px;
+        padding: 2px 8px;
+    }
+    
+    .question-text {
+        font-size: 12px;
+    }
+}
