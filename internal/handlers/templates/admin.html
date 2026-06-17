@@ -10,40 +10,8 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
         th { background: #f2f2f2; }
+        .answers { max-width: 420px; white-space: normal; }
         .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
-        
-        /* Стили для ответов в колонках */
-        .answer-item {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            margin: 2px 0;
-        }
-        .answer-item.correct {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .answer-item.incorrect {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .no-answers {
-            color: #999;
-            font-style: italic;
-            font-size: 12px;
-        }
-        .question-header {
-            font-weight: 600;
-            font-size: 12px;
-            color: #555;
-            margin-bottom: 4px;
-        }
-        .question-cell {
-            min-width: 100px;
-        }
     </style>
 </head>
 <body>
@@ -84,12 +52,11 @@
             <tr>
                 <th>ФИО</th>
                 <th>Дата</th>
-                <th>Время</th>
+                <th>Начало</th>
+                <th>Окончание</th>
                 <th>Тест</th>
                 <th>Результат</th>
-                {{range index .Reports 0 | .Questions}}
-                    <th class="question-cell">{{.Text}}</th>
-                {{end}}
+                <th>Ответы</th>
             </tr>
         </thead>
         <tbody>
@@ -97,26 +64,32 @@
             <tr>
                 <td>{{.FIO}}</td>
                 <td>{{.Date}}</td>
-                <td>
-                    {{.StartTime}} - {{.EndTime}}<br>
-                    <small style="color:#666;">{{.Duration}}</small>
-                </td>
+                <td>{{.StartTime}}</td>
+                <td>{{.EndTime}}</td>
+                <td>{{.Duration}}</td>
                 <td>{{.BookTitle}}</td>
-                <td><strong>{{.Score}}/{{.MaxScore}}</strong></td>
-                {{range .Questions}}
-                    <td class="question-cell">
-                        {{range .Answers}}
-                            <span class="answer-item {{if .IsCorrect}}correct{{else}}incorrect{{end}}">
-                                {{.Text}}
-                            </span>
-                        {{else}}
-                            <span class="no-answers">—</span>
-                        {{end}}
-                    </td>
-                {{end}}
+                <td>{{.Score}}/{{.MaxScore}}</td>
+                <td class="answers">
+                    {{range .Questions}}
+                        <div class="question-block">
+                            <div class="question-text">{{.Text}}</div>
+                            <div class="answers-list">
+                                {{range .Answers}}
+                                    <span class="answer-item {{if .IsCorrect}}correct{{else}}incorrect{{end}}">
+                                        {{.Text}}
+                                    </span>
+                                {{else}}
+                                    <span class="no-answers">Нет ответов</span>
+                                {{end}}
+                            </div>
+                        </div>
+                    {{else}}
+                        <span class="no-answers">Нет вопросов</span>
+                    {{end}}
+                </td>
             </tr>
             {{else}}
-            <tr><td colspan="{{add 5 (len .Questions)}}">Нет данных по выбранным фильтрам</td></tr>
+            <tr><td colspan="7">Нет данных по выбранным фильтрам</td></tr>
             {{end}}
         </tbody>
     </table>
