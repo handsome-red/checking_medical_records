@@ -95,7 +95,7 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 			questions = append(questions, QuestionView{
 				Text:    answer.QuestionText,
 				Answers: answerViews,
-				Correct: allCorrect,
+				// Correct: allCorrect,
 			})
 		}
 
