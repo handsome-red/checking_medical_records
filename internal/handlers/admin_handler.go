@@ -64,7 +64,10 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	viewReports := make([]AdminReportView, 0, len(reports))
+	// Группируем отчеты по книгам
+	reportsByBook := make(map[string][]AdminReportView)
+	bookQuestions := make(map[string][]string) // для хранения вопросов по книгам
+
 	for _, report := range reports {
 		endTime := ""
 		duration := ""
@@ -73,35 +76,30 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 			duration = report.CompletedAt.Sub(report.StartedAt).String()
 		}
 
-		// answers := make([]string, 0, len(report.Answers))
-		// for _, answer := range report.Answers {
-		// 	text := joinSelected(answer.SelectedTexts)
-		// 	if answer.QuestionText != "" {
-		// 		text = answer.QuestionText + ": " + text
-		// 	}
-		// 	answers = append(answers, text)
-		// }
-
 		questions := make([]QuestionView, 0, len(report.Answers))
 		for _, answer := range report.Answers {
-
 			answerViews := make([]AnswerView, 0, len(answer.SelectedTexts))
+			allCorrect := true
 
 			for _, textReport := range answer.SelectedTexts {
+				isCorrect := textReport.IsCorrect
 				answerViews = append(answerViews, AnswerView{
 					Text:      textReport.Text,
-					IsCorrect: textReport.IsCorrect,
+					IsCorrect: isCorrect,
 				})
+				if !isCorrect {
+					allCorrect = false
+				}
 			}
 
 			questions = append(questions, QuestionView{
 				Text:    answer.QuestionText,
 				Answers: answerViews,
-				// Correct: allCorrect,
+				Correct: allCorrect,
 			})
 		}
 
-		viewReports = append(viewReports, AdminReportView{
+		viewReport := AdminReportView{
 			FIO:       fmt.Sprintf("%s %s %s", report.LastName, report.FirstName, report.Patronymic),
 			Date:      report.StartedAt.Format("02.01.2006"),
 			StartTime: report.StartedAt.Format("15:04"),
@@ -111,7 +109,19 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 			Score:     report.Score,
 			MaxScore:  report.MaxScore,
 			Questions: questions,
-		})
+		}
+
+		// Группируем по названию книги
+		reportsByBook[report.BookTitle] = append(reportsByBook[report.BookTitle], viewReport)
+
+		// Сохраняем вопросы для этой книги
+		if _, exists := bookQuestions[report.BookTitle]; !exists {
+			questionTexts := make([]string, 0, len(questions))
+			for _, q := range questions {
+				questionTexts = append(questionTexts, q.Text)
+			}
+			bookQuestions[report.BookTitle] = questionTexts
+		}
 	}
 
 	selectedUserID := ""
@@ -138,7 +148,8 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Users":          users,
 		"Books":          books,
-		"Reports":        viewReports,
+		"ReportsByBook":  reportsByBook,
+		"BookQuestions":  bookQuestions,
 		"SelectedUserID": selectedUserID,
 		"SelectedBookID": selectedBookID,
 		"ExportURL":      exportURL,
