@@ -79,23 +79,21 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 		questions := make([]QuestionView, 0, len(report.Answers))
 		for _, answer := range report.Answers {
 			answerViews := make([]AnswerView, 0, len(answer.SelectedTexts))
-			// allCorrect := true
 
 			for _, textReport := range answer.SelectedTexts {
 				isCorrect := textReport.IsCorrect
+				isSelected := textReport.IsSelected
+
 				answerViews = append(answerViews, AnswerView{
-					Text:      textReport.Text,
-					IsCorrect: isCorrect,
+					Text:       textReport.Text,
+					IsCorrect:  isCorrect,
+					IsSelected: isSelected,
 				})
-				// if !isCorrect {
-				// 	allCorrect = false
-				// }
 			}
 
 			questions = append(questions, QuestionView{
 				Text:    answer.QuestionText,
 				Answers: answerViews,
-				// Correct: allCorrect,
 			})
 		}
 
@@ -221,8 +219,9 @@ func parseAdminFilters(r *http.Request) (*uuid.UUID, *uuid.UUID) {
 
 // AnswerView представляет один ответ пользователя
 type AnswerView struct {
-	Text      string `json:"text"`       // Текст ответа
-	IsCorrect bool   `json:"is_correct"` // Правильный ли ответ
+	Text       string `json:"text"`        // Текст ответа
+	IsCorrect  bool   `json:"is_correct"`  // Правильный ли ответ
+	IsSelected bool   `json:"is_selected"` // Добавить поле
 }
 
 // QuestionView представляет вопрос с ответами пользователя

@@ -252,8 +252,9 @@ type AdminSessionReport struct {
 }
 
 type AdminTextReport struct {
-	Text      string `json:"text"`
-	IsCorrect bool   `json:"is_correct"`
+	Text       string `json:"text"`
+	IsCorrect  bool   `json:"is_correct"`
+	IsSelected bool   `json:"is_selected"`
 }
 
 type AdminAnswerReport struct {
@@ -306,22 +307,53 @@ func (r *SessionRepository) GetAdminReports(ctx context.Context, userID, bookID 
 			answersByQuestion[answer.QuestionID] = append(answersByQuestion[answer.QuestionID], answer)
 		}
 
-		for _, userAnswers := range answersByQuestion {
+		for questionID, userAnswers := range answersByQuestion {
 			if len(userAnswers) == 0 {
 				continue
 			}
 			questionText := userAnswers[0].Question.Text
-			selected := make([]AdminTextReport, 0, len(userAnswers))
+
+			var correctOptions []model.Option
+			r.db.WithContext(ctx).
+				Where("question_id = ? AND is_correct = ?", questionID, true).
+				Order("sort_order").
+				Find(&correctOptions)
+
+			answersMap := make(map[string]AdminTextReport)
+			for _, opt := range correctOptions {
+				answersMap[opt.Text] = AdminTextReport{
+					Text:       opt.Text,
+					IsCorrect:  true,
+					IsSelected: false,
+				}
+			}
+
 			for _, ua := range userAnswers {
-				selected = append(selected, AdminTextReport{
-					Text:      ua.Option.Text,
-					IsCorrect: ua.Option.IsCorrect,
-				})
+
+				isCorrect := ua.Option.IsCorrect
+
+				if isCorrect {
+					if report, exist := answersMap[ua.Option.Text]; exist {
+						report.IsSelected = true
+						answersMap[ua.Option.Text] = report
+					}
+				} else {
+					answersMap[ua.Option.Text] = AdminTextReport{
+						Text:       ua.Option.Text,
+						IsCorrect:  false,
+						IsSelected: true,
+					}
+				}
+			}
+
+			allAnswers := make([]AdminTextReport, 0, len(answersMap))
+			for _, answer := range answersMap {
+				allAnswers = append(allAnswers, answer)
 			}
 
 			report.Answers = append(report.Answers, AdminAnswerReport{
 				QuestionText:  questionText,
-				SelectedTexts: selected,
+				SelectedTexts: allAnswers,
 			})
 		}
 
