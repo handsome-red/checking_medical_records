@@ -79,7 +79,7 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 		questions := make([]QuestionView, 0, len(report.Answers))
 		for _, answer := range report.Answers {
 			answerViews := make([]AnswerView, 0, len(answer.SelectedTexts))
-			allCorrect := true
+			// allCorrect := true
 
 			for _, textReport := range answer.SelectedTexts {
 				isCorrect := textReport.IsCorrect
@@ -87,9 +87,9 @@ func (h *AdminHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 					Text:      textReport.Text,
 					IsCorrect: isCorrect,
 				})
-				if !isCorrect {
-					allCorrect = false
-				}
+				// if !isCorrect {
+				// 	allCorrect = false
+				// }
 			}
 
 			questions = append(questions, QuestionView{
